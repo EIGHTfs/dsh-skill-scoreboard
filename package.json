@@ -1,0 +1,26 @@
+{
+  "name": "dsh-skill-scoreboard",
+  "version": "1.0.0",
+  "description": "skill 使用记分板（代码级自动记录）：监听模型实际调用 skill 工具，按会话去重自动累计每个 skill 的使用次数，替换手动 skill-scoreboard.md 记分板。数据存 data/skill-usage.json，可随仓库提交。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "skills",
+    "data",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "skills": [
+      "./skills/dsh-skill-scoreboard.md"
+    ]
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,50 @@
+---
+name: dsh-skill-scoreboard
+description: skill 使用记分板（插件 dsh-skill-scoreboard 的用法说明）：完全用代码自动记录 AI 实际用过哪些 skill，无需手动记分——模型每次加载 skill 工具，插件自动按会话去重累计次数，数据存插件 data/skill-usage.json。处理「skill 用了多少次」「哪个 skill 用得多」「skill 使用统计」「记分板数据在哪」「手动记分 vs 自动记分」类场景时加载；与 skill-usage-session-log（会话 skill 留痕）、skill-cite-sources（固化必说依据）配套。
+whenToUse: 需要查 skill 使用次数/热度排行、确认某 skill 是否被用过、了解记分板数据来源与更新方式时。
+generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级为插件 dsh-skill-scoreboard 代码级自动记录）
+---
+
+# skill 使用记分板（dsh-skill-scoreboard 插件）
+
+> 2026-09-02 由手动 `skill-scoreboard.md` 记分板升级为**插件代码级自动记录**。
+> 核心一句话：**模型每实际加载一个 skill，插件自动 +1——不用 AI 手动记分。**
+
+## 一、自动记录机制
+
+- **hook 点**：监听 `agent/pre-step`，扫描批次消息里的 `tool-call` 块
+- **判定**：命中工具名 `skill`（`type === "tool-call" && name === "skill"`）→ 该 skill 记 1 次
+- **去重**：**按会话去重**——同一会话内重复加载同一 skill 只计 1 次，跨会话累加
+- **数据**：存插件 `data/skill-usage.json`，随仓库 git 版本管理可提交
+
+## 二、数据结构
+
+```json
+{
+  "version": 1,
+  "skills": {
+    "analyze-then-confirm": { "count": 5, "lastUsedAt": "2026-09-02T03:30:00.000Z", "sessions": ["session-abc", "session-def"] }
+  }
+}
+```
+
+- `count`：累计使用次数（跨会话累加）
+- `lastUsedAt`：最近生效时间（ISO）
+- `sessions`：已计分的会话 id 列表（用于去重判定）
+
+## 三、使用方式
+
+1. **查排行**：读插件 `data/skill-usage.json`，按 `count` 降序即热度排行
+2. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
+3. **手动维护**：正常无需手动改；如需调整（如删除误计），直接编辑数据文件对应项
+
+## 四、与旧记分板的关系
+
+- 旧 `skill-scoreboard.md`（2026-08-24 手动记分）的 33 个 skill 分数已**迁移**进插件数据文件（`sessions: ["__migrated__"]` 标注）
+- 后续全部由插件自动累计，不再手动 +1
+
+## 五、配套
+
+- `skill-usage-session-log`：每个会话把加载的 skill 清单写入 `<会话id>.md`（手动留痕，与自动记分互补）
+- `skill-cite-sources`：固化 skill 必说依据来源
+- `any-md-is-skill`：md 即 skill 的通用规则
