@@ -12,10 +12,11 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 
 ## 一、自动记录机制
 
-- **hook 点**：监听 `agent/pre-step`，扫描批次消息里的 `tool-call` 块
-- **判定**：命中工具名 `skill`（`type === "tool-call" && name === "skill"`）→ 该 skill 记 1 次
-- **去重**：**按会话去重**——同一会话内重复加载同一 skill 只计 1 次，跨会话累加
+- **hook 点**：监听 `tools/result`（skill 工具真正执行完、结果已冻结）
+- **判定**：`exec.name === "skill"` 且结果非错误 → 取 `arguments.name` 记 1 次
+- **去重**：**按会话去重**——同一会话内重复加载同一 skill 只计 1 次，跨会话累加；`callId` 防同一调用重复写
 - **数据**：存插件 `data/skill-usage.json`，随仓库 git 版本管理可提交
+- **不要扫 `session.events`**：Session 没有公开 `events` 字段；`agent/pre-step` 也发生在本步 skill 调用之前
 
 ## 二、数据结构
 
@@ -31,6 +32,7 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - `count`：累计使用次数（跨会话累加）
 - `lastUsedAt`：最近生效时间（ISO）
 - `sessions`：已计分的会话 id 列表（用于去重判定）
+- `callIds`：已计分的工具调用 id（防同一调用重复写）
 
 ## 三、使用方式
 
