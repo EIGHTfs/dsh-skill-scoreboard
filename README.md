@@ -1,6 +1,6 @@
 # dsh-skill-scoreboard
 
-> skill 使用记分板：模型真正加载 skill 工具后，按会话去重自动累计次数。替代手动 `skill-scoreboard.md`。运行时数据写在 `data/skill-usage.json`，默认 git 忽略。
+> skill 使用记分板：模型真正加载 skill 工具后，按会话去重自动累计次数。替代手动 `skill-scoreboard.md`。运行时数据写在 `data/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面。
 
 ## 目录
 
@@ -18,6 +18,7 @@
 - **判定**：`exec.name === "skill"`，从 `arguments.name` 取 skill 名。
 - **去重**：同一会话同一 skill 只计 1 次；`callId` 防同一调用重复写。
 - **持久化**：原子写 `data/skill-usage.json`（临时文件 + rename）。
+- **展示**：宿主端 `GET /api/skill-scoreboard` 只读接口 + 浏览器半侧挂 **设置 → 侧边栏 →「Skill 记分板」**（`settings.section` 独立页面）。
 - **不扫会话日志**：`Session` 没有公开 `events` 字段。`agent/pre-step` 发生在本步 `skill` 调用之前，会漏记。
 
 ```
@@ -29,18 +30,22 @@ name === "skill" 且非错误
     ↓
 按 sessionId / callId 去重
     ↓
-data/skill-usage.json
+data/skill-usage.json  ←── GET /api/skill-scoreboard（宿主）
+                            ↓
+                   设置侧边栏「Skill 记分板」页面（浏览器）
 ```
 
 ## 文件目录结构及作用
 
 | 路径 | 作用 |
 |---|---|
-| `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，读写记分数据 |
+| `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，读写记分数据；注册 `GET /api/skill-scoreboard` |
+| `lib/client.js` | 浏览器半侧（v1.3.0）：注册 `settings.section` 侧边栏条目「Skill 记分板」+ 独立记分榜页面（按次数降序、刷新、空态/错误态、中英双语跟随当前语言） |
 | `cordis.patch.yml` | bundle patch：insert `id: skill-scoreboard` |
 | `skills/dsh-skill-scoreboard.md` | 插件手册 skill |
+| `test-scoreboard.mjs` | 单测：记分去重 + API 输出（mock ctx + 临时数据文件） |
 | `data/skill-usage.json` | 运行时记分数据（git 忽略，不入库） |
-| `package.json` | 包名 / 版本 / `dsh.bundle.patch` / `dsh.skills` |
+| `package.json` | 包名 / 版本 / `dsh.bundle.patch` / `dsh.skills` / `dsh.client` |
 
 ## 启动脚本
 
@@ -64,22 +69,25 @@ cp -a ./dsh-skill-scoreboard profiles/web/local-plugins/dsh-skill-scoreboard
 cd profiles/web
 node --input-type=module -e 'import * as m from "dsh-skill-scoreboard"; console.log(m.name, m.inject, typeof m.apply)'
 
-# 5) 改 patch / 插件代码后重启 web profile 才会加载新 hook
+# 5) 改 patch / 插件代码（宿主半侧）后重启 web profile 才会加载新 hook；
+#    只改 lib/client.js 可用 clientModules.rebuilt('dsh-skill-scoreboard') 热刷新（免重启）
 ```
 
 启动成功时进程日志：
 
 ```
 [skill-scoreboard] ✅ 已启动，数据文件: …/dsh-skill-scoreboard/data/skill-usage.json，当前记录 N 个 skill
+[skill-scoreboard] ✅ 已注册 GET /api/skill-scoreboard（设置页记分卡）
 ```
 
 ## API 总览
 
-本插件不注册 HTTP API，也不注册 agent 工具。记分在 `tools/result` 上自动发生。
+记分在 `tools/result` 上自动发生；v1.2.0 起提供只读查询 API 供设置页使用。
 
 | 入口 | 说明 |
 |---|---|
 | `tools/result` | 观察 skill 工具最终结果并记分 |
+| `GET /api/skill-scoreboard` | 只读：按 `count` 降序返回记分表 `{ok, total, recorded, updatedAt, skills:[{name,count,lastUsedAt}]}`（最多 200 条）；供设置侧边栏「Skill 记分板」页面 |
 | `data/skill-usage.json` | 读排行：按 `count` 降序 |
 | 配置 `enabled` | `false` 时不挂监听 |
 | 配置 `dataFile` | 覆盖默认数据路径 |
@@ -129,6 +137,8 @@ PY
 
 | 版本 | 内容 |
 |------|------|
+| 1.3.0 | **设置侧边栏页面**：浏览器半侧改挂 `settings.section`（设置 → 侧边栏 →「Skill 记分板」独立页面：按次数降序、刷新、空态/错误态、中英双语跟随当前语言），不再占插件配置页卡片位 |
+| 1.2.0 | **设置页记分卡**：新增 `GET /api/skill-scoreboard` 只读查询 API + `lib/client.js` 设置卡（设置 → 插件配置 →「Skill 记分榜」；dsh.client web bundle 注入） |
 | 1.1.1 | 按 git-push README 模板重写文档；GitHub About 改为插件一句话说明 |
 | 1.1.0 | 改听 `tools/result`。不再读不存在的 `session.events`，skill 真正执行完才记分 |
 | 1.0.0 | 代码级自动记录；旧手动记分板分数迁入；配套 skill；运行时数据 git 忽略 |
@@ -137,12 +147,13 @@ PY
 
 - 运行时数据默认不入库（`.gitignore` 含 `data/skill-usage.json`）。公开仓库不要把记分文件提交进去。
 - 软链到无 `node_modules` 的源码目录会导致 ESM 解析 `@deepseek-ai/schemastery` 失败，用真实目录拷贝。
-- 改 `lib/index.js` 或 patch 后必须重启 web profile，当前进程不会热加载这段 hook。
+- 改 `lib/index.js` 或 patch 后必须重启 web profile，当前进程不会热加载这段 hook；只改 `lib/client.js` 可用 `clientModules.rebuilt('dsh-skill-scoreboard')` 免重启热刷。
 - 只统计工具名 `skill` 的成功调用。失败的 skill 加载不计分。
 - 同一会话重复加载同一 skill 只计 1 次。
 
 ## 开发计划 / 疑难杂症
 
-- [ ] HTTP 只读接口：按 `count` 返回排行，不必直接读 JSON
+- [x] HTTP 只读接口：按 `count` 返回排行，不必直接读 JSON（v1.2.0 已实现为 GET /api/skill-scoreboard）
+- [x] 设置侧边栏独立页面（v1.3.0：settings.section「Skill 记分板」，替代插件配置页卡片）
 - [ ] 数据文件放到 profile 数据目录，避免装在 `node_modules` 里被 `pnpm install` 清掉
 - [x] 观察点从 `agent/pre-step` + `session.events` 改为 `tools/result`

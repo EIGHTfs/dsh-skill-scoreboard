@@ -16,6 +16,7 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - **判定**：`exec.name === "skill"` 且结果非错误 → 取 `arguments.name` 记 1 次
 - **去重**：**按会话去重**——同一会话内重复加载同一 skill 只计 1 次，跨会话累加；`callId` 防同一调用重复写
 - **数据**：存插件 `data/skill-usage.json`，随仓库 git 版本管理可提交
+- **展示（v1.2.0+）**：只读接口 `GET /api/skill-scoreboard` 返回按次数降序记分表；浏览器半侧 v1.3.0 起挂在 **设置 → 侧边栏 →「Skill 记分板」** 独立页面（`settings.section`）
 - **不要扫 `session.events`**：Session 没有公开 `events` 字段；`agent/pre-step` 也发生在本步 skill 调用之前
 
 ## 二、数据结构
