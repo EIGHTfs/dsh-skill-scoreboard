@@ -1,5 +1,5 @@
-/** dsh-skip-sensitive dsh-skill-scoreboard v1.5.0 单测：tools/result 记分去重 + 设置页 API + 注入文本 + 导入导出 + mkdir */
-import { apply, name, buildScoreboardInjection, normalizeScoreboardPayload, mergeScoreboard, ensureDataDir } from './lib/index.js';
+/** dsh-skip-sensitive dsh-skill-scoreboard v1.6.0 单测：两种记分 + 设置页 API + 注入路径兜底 + 导入导出 + mkdir */
+import { apply, name, buildScoreboardInjection, normalizeScoreboardPayload, mergeScoreboard, ensureDataDir, resolveSkillPath } from './lib/index.js';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -51,9 +51,10 @@ try {
   await sleep(120);
 
   const data = JSON.parse(readFileSync(dataFile, 'utf8'));
-  ok(data.skills['foo-skill']?.count === 2, `foo-skill 跨会话累计 2 次（实际 ${data.skills['foo-skill']?.count}）`);
+  ok(data.skills['foo-skill']?.count === 2, `foo-skill 会话去重 2 次（实际 ${data.skills['foo-skill']?.count}）`);
+  ok(data.skills['foo-skill']?.loads === 3, `foo-skill 每次加载 3 次（实际 ${data.skills['foo-skill']?.loads}）`);
   ok(data.skills['foo-skill']?.sessions?.length === 2, 'foo-skill 记 2 个会话');
-  ok(data.skills['bar-skill']?.count === 1, 'bar-skill 计 1 次');
+  ok(data.skills['bar-skill']?.count === 1 && data.skills['bar-skill']?.loads === 1, 'bar-skill 会话去重/加载各 1 次');
   ok(!data.skills['x'], '非 skill 工具不计分');
   ok(!data.skills['err-skill'], 'isError 结果不计分');
 
@@ -66,8 +67,8 @@ try {
   let apiStatus = 0; let apiHeaders = null;
   await routes['/api/skill-scoreboard'].handler({ method: 'GET', url: '/api/skill-scoreboard' }, mockRes);
   ok(apiStatus === 200 && apiHeaders['Content-Type']?.includes('application/json'), 'API 返回 JSON 200');
-  ok(apiBody.ok === true && apiBody.total === 3, `API total=3（实际 ${apiBody.total}）`);
-  ok(apiBody.skills.length === 2 && apiBody.skills[0].name === 'foo-skill' && apiBody.skills[0].count === 2, 'API 按次数降序且首条 foo-skill');
+  ok(apiBody.ok === true && apiBody.total === 3 && apiBody.totalLoads === 4, `API total=3 totalLoads=4（实际 ${apiBody.total}/${apiBody.totalLoads}）`);
+  ok(apiBody.skills.length === 2 && apiBody.skills[0].name === 'foo-skill' && apiBody.skills[0].count === 2 && apiBody.skills[0].loads === 3, 'API 按会话去重降序且首条 foo-skill 含 loads');
   ok(apiBody.skills.every((s) => typeof s.lastUsedAt === 'string' || s.lastUsedAt === null), 'lastUsedAt 字段');
   ok(typeof apiBody.updatedAt === 'string' || apiBody.updatedAt === null, 'updatedAt 字段');
 
@@ -86,12 +87,23 @@ try {
   ok(injection.includes('【dsh-skill-scoreboard 注入：skill 使用记分榜】'), '注入带标题');
   ok(injection.includes('foo-skill') && injection.includes('bar-skill'), '注入包含全部 skill 名');
   ok(injection.includes('/tmp/skills/foo-skill.md'), '注入包含 skill 实际路径');
-  ok(injection.includes('foo-skill ×2'), '注入带次数');
+  ok(injection.includes('会话去重 ×2') && injection.includes('加载 ×3'), '注入同时带两种次数');
   ok(injection.indexOf('foo-skill') < injection.indexOf('bar-skill'), '注入按次数降序');
-  ok(injection.includes('共 2 个 skill') && injection.includes('累计 3 次'), '注入带总数');
+  ok(injection.includes('共 2 个 skill') && injection.includes('会话去重累计 3 次') && injection.includes('加载累计 4 次'), '注入带两种总数');
   ok(injection.includes('完整榜单见 设置'), '注入带 UI 指引');
   const emptyInj = await buildScoreboardInjection({ file: join(root, 'no-such.json'), topN: 25 });
   ok(emptyInj === '', '无记录返回空串');
+
+  const viaResourceBase = await resolveSkillPath('foo-skill', {
+    get: async () => ({ resourceBase: { kind: 'directory', path: '/tmp/skills' } }),
+  });
+  ok(viaResourceBase === '/tmp/skills' || viaResourceBase.endsWith('foo-skill.md') || viaResourceBase === '/tmp/skills', `resourceBase 兜底路径（实际 ${viaResourceBase}）`);
+  const noPathInj = await buildScoreboardInjection({
+    file: dataFile,
+    topN: 1,
+    skillsSvc: { get: async () => ({}) },
+  });
+  ok(noPathInj.includes('→ '), 'skills.get 无 path 时注入仍带路径位（扫描或未找到提示）');
 
   // ---- 导入导出 / 规范化 ----
   const norm = normalizeScoreboardPayload({ version: 9, skills: { 'a-skill': { count: '3', lastUsedAt: '2026-01-01T00:00:00.000Z', sessions: ['s'] } } });
