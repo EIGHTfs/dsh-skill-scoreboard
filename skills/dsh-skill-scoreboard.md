@@ -17,6 +17,7 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - **去重**：**按会话去重**——同一会话内重复加载同一 skill 只计 1 次，跨会话累加；`callId` 防同一调用重复写
 - **数据**：存插件 `data/skill-usage.json`，随仓库 git 版本管理可提交
 - **展示（v1.2.0+）**：只读接口 `GET /api/skill-scoreboard` 返回按次数降序记分表；浏览器半侧 v1.3.0 起挂在 **设置 → 侧边栏 →「Skill 记分板」** 独立页面（`settings.section`）
+- **注入（v1.4.0）**：`agent/pre-step` 与 dsh-git-push 相同时机，每个 agent 首次 step 注入一次「记分榜 Top N + skill 实际路径」（路径经 `skills` 服务解析并兜底扫描技能仓库/工作区，仅供 AI 参考；设置页 UI 不显示路径）；配置 `injectEnabled` / `injectTopN`
 - **不要扫 `session.events`**：Session 没有公开 `events` 字段；`agent/pre-step` 也发生在本步 skill 调用之前
 
 ## 二、数据结构
@@ -38,8 +39,9 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 ## 三、使用方式
 
 1. **查排行**：读插件 `data/skill-usage.json`，按 `count` 降序即热度排行
-2. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
-3. **手动维护**：正常无需手动改；如需调整（如删除误计），直接编辑数据文件对应项
+2. **AI 自动参考（v1.4.0）**：每个 agent 会话首次 step，插件自动注入「大家常用哪些 skill + 它们实际在哪」，无需手动查；要关掉用配置 `injectEnabled: false`，条数 `injectTopN`
+3. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
+4. **手动维护**：正常无需手动改；如需调整（如删除误计），直接编辑数据文件对应项
 
 ## 四、与旧记分板的关系
 

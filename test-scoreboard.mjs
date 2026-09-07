@@ -1,5 +1,5 @@
-/** dsh-skip-sensitive dsh-skill-scoreboard v1.2.0 单测：tools/result 记分去重 + 设置页 API（mock ctx + 临时数据文件） */
-import { apply, name } from './lib/index.js';
+/** dsh-skip-sensitive dsh-skill-scoreboard v1.4.0 单测：tools/result 记分去重 + 设置页 API + v1.4.0 注入文本（mock ctx + 临时数据文件） */
+import { apply, name, buildScoreboardInjection } from './lib/index.js';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -72,6 +72,24 @@ try {
   // 非 GET → 405
   await registered.handler({ method: 'POST', url: '/' }, mockRes);
   ok(apiStatus === 405, '非 GET 返回 405');
+
+  // ---- v1.4.0 注入文本 ----
+  const injection = await buildScoreboardInjection({
+    file: dataFile,
+    topN: 25,
+    skillsSvc: {
+      get: async (n) => (n === 'foo-skill' ? { path: '/tmp/skills/foo-skill.md' } : undefined),
+    },
+  });
+  ok(injection.includes('【dsh-skill-scoreboard 注入：skill 使用记分榜】'), '注入带标题');
+  ok(injection.includes('foo-skill') && injection.includes('bar-skill'), '注入包含全部 skill 名');
+  ok(injection.includes('/tmp/skills/foo-skill.md'), '注入包含 skill 实际路径');
+  ok(injection.includes('foo-skill ×2'), '注入带次数');
+  ok(injection.indexOf('foo-skill') < injection.indexOf('bar-skill'), '注入按次数降序');
+  ok(injection.includes('共 2 个 skill') && injection.includes('累计 3 次'), '注入带总数');
+  ok(injection.includes('完整榜单见 设置'), '注入带 UI 指引');
+  const emptyInj = await buildScoreboardInjection({ file: join(root, 'no-such.json'), topN: 25 });
+  ok(emptyInj === '', '无记录返回空串');
 
   // ---- 损坏数据文件不崩 ----
   writeFileSync(dataFile, '{broken', 'utf8');

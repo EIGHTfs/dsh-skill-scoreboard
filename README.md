@@ -1,6 +1,6 @@
 # dsh-skill-scoreboard
 
-> skill 使用记分板：模型真正加载 skill 工具后，按会话去重自动累计次数。替代手动 `skill-scoreboard.md`。运行时数据写在 `data/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面。
+> skill 使用记分板：模型真正加载 skill 工具后，按会话去重自动累计次数。替代手动 `skill-scoreboard.md`。运行时数据写在 `data/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面；v1.4.0 起在 `agent/pre-step`（与 dsh-git-push 相同时机）把记分榜与 skill 实际路径注入给 AI 参考。
 
 ## 目录
 
@@ -19,6 +19,7 @@
 - **去重**：同一会话同一 skill 只计 1 次；`callId` 防同一调用重复写。
 - **持久化**：原子写 `data/skill-usage.json`（临时文件 + rename）。
 - **展示**：宿主端 `GET /api/skill-scoreboard` 只读接口 + 浏览器半侧挂 **设置 → 侧边栏 →「Skill 记分板」**（`settings.section` 独立页面）。
+- **注入（v1.4.0）**：`agent/pre-step` 事件（与 dsh-git-push 相同时机），每个 agent 首次 step 注入一次：记分榜 Top N（次数降序）+ 每个 skill 的**实际文件路径**（优先 `skills` 服务 `get()` 的 `path`/`resourceBase`，其次按 skill-repo-index 规则扫描技能仓库 `ai-work-archive/skills/`、工作区各项目 `skills/`、用户级 `.dsh/skills/`；路径只注入给 AI，设置页 UI 不显示）。开关 `injectEnabled`、条数 `injectTopN`。
 - **不扫会话日志**：`Session` 没有公开 `events` 字段。`agent/pre-step` 发生在本步 `skill` 调用之前，会漏记。
 
 ```
@@ -31,15 +32,19 @@ name === "skill" 且非错误
 按 sessionId / callId 去重
     ↓
 data/skill-usage.json  ←── GET /api/skill-scoreboard（宿主）
-                            ↓
-                   设置侧边栏「Skill 记分板」页面（浏览器）
+    │                       ↓
+    │             设置侧边栏「Skill 记分板」页面（浏览器）
+    ↓
+agent/pre-step（每个 agent 首次 step）
+    ↓
+记分榜 Top N + skill 实际路径 注入给 AI（v1.4.0）
 ```
 
 ## 文件目录结构及作用
 
 | 路径 | 作用 |
 |---|---|
-| `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，读写记分数据；注册 `GET /api/skill-scoreboard` |
+| `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，读写记分数据；注册 `GET /api/skill-scoreboard`；v1.4.0 `agent/pre-step` 注入记分榜 + skill 实际路径 |
 | `lib/client.js` | 浏览器半侧（v1.3.0）：注册 `settings.section` 侧边栏条目「Skill 记分板」+ 独立记分榜页面（按次数降序、刷新、空态/错误态、中英双语跟随当前语言） |
 | `cordis.patch.yml` | bundle patch：insert `id: skill-scoreboard` |
 | `skills/dsh-skill-scoreboard.md` | 插件手册 skill |
@@ -91,6 +96,8 @@ node --input-type=module -e 'import * as m from "dsh-skill-scoreboard"; console.
 | `data/skill-usage.json` | 读排行：按 `count` 降序 |
 | 配置 `enabled` | `false` 时不挂监听 |
 | 配置 `dataFile` | 覆盖默认数据路径 |
+| 配置 `injectEnabled`（v1.4.0） | `false` 时不注入记分榜（默认 true） |
+| 配置 `injectTopN`（v1.4.0） | 注入 Top N 个 skill 及路径（默认 25） |
 
 数据结构：
 
@@ -137,6 +144,7 @@ PY
 
 | 版本 | 内容 |
 |------|------|
+| 1.4.0 | **agent/pre-step 注入**：与 dsh-git-push 相同时机，每个 agent 首次 step 注入记分榜 Top N（次数降序）+ 每个 skill 的**实际文件路径**（经 `skills` 服务与技能仓库/工作区扫描解析，供 AI 参考；设置页 UI 不显示路径）；配置 `injectEnabled` / `injectTopN` |
 | 1.3.0 | **设置侧边栏页面**：浏览器半侧改挂 `settings.section`（设置 → 侧边栏 →「Skill 记分板」独立页面：按次数降序、刷新、空态/错误态、中英双语跟随当前语言），不再占插件配置页卡片位 |
 | 1.2.0 | **设置页记分卡**：新增 `GET /api/skill-scoreboard` 只读查询 API + `lib/client.js` 设置卡（设置 → 插件配置 →「Skill 记分榜」；dsh.client web bundle 注入） |
 | 1.1.1 | 按 git-push README 模板重写文档；GitHub About 改为插件一句话说明 |
