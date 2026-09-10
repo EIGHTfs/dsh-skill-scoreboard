@@ -81,7 +81,8 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 
 ## 七、开发注意（踩过的坑）
 
-- **顶层函数只能引用顶层常量**：`lib/client.js` 中 `createModule` 之外的顶层函数（如 `ensureCss`）不能引用 `createModule` 内的局部名（`name` / `ui` / `React`）。v1.8.0 重构时 `ensureCss` 引用了 `name`，浏览器执行即抛 `ReferenceError`，设置页**白屏**（v1.8.1 修复：改用顶层常量 `NS`）；需要共享给顶层使用的 React 走模块级 `ReactRef`。
-- **改前端必须做真实浏览器自检**：单测的 mock React 环境没有 `document`，会走 `ensureCss` 的提前 return 分支，测不到 DOM 注入路径（白屏 bug 就是这样漏掉的）。做法：jsdom + 真实 react-dom 渲染出 DOM，再用 chromium `--dump-dom` 读 `getComputedStyle` 核对颜色/列高亮，并用 `--enable-logging=stderr` 抓 JS 异常。
+- **顶层函数只能引用顶层常量**：`lib/client.js` 中 `createModule` 之外的顶层函数（如 `ensureCss`）不能引用 `createModule` 内的局部名（`name` / `ui` / `React`）。v1.8.0 重构时 `ensureCss` 引用了 `name`——在浏览器里 `name` 会落到 `window.name`（空串，**不抛错**），所以 `data-plugin-css` 被写成空串，`querySelector` 去重永不命中，每次渲染都重复插入 `<style>`（v1.8.1 修复：改用顶层常量 `NS`）；需要共享给顶层使用的 React 走模块级 `ReactRef`。
+- **改前端必须做真实浏览器自检**：单测的 mock React 环境没有 `document`，会走 `ensureCss` 的提前 return 分支，测不到 DOM 注入路径（重复注入 bug 就是这样漏掉的）。做法：jsdom + 真实 react-dom 渲染出 DOM，再用 chromium `--dump-dom` 读 `getComputedStyle` 核对颜色/列高亮，并用 `--enable-logging=stderr` 抓 JS 异常。
+- **jsdom 不能当作浏览器判据**：jsdom 没有 `window.name` 这类浏览器全局，同一段代码在 jsdom 抛 `ReferenceError`、在真实浏览器却照常执行——据此下"页面白屏"的结论是**误判**。凡是「浏览器里会怎样」的判断，必须在真实 chromium 里跑一遍再定论；jsdom 只用于渲染结构与样式断言。
 - **宿主半侧改完要重启才生效**：`lib/index.js`（记分钩子、只读 API）的改动需重启 web profile；`lib/client.js` 可热更新。三份副本（源码仓 / `local-plugins/` / `node_modules/`）改完必须同步并用 `md5sum` 核对一致。
 - **两种次数同时维护**：`count`（按会话去重）与 `loads`（每次加载）同时写入，改记分逻辑时不要只更新其中一个；`sessions` 会话表同样要同步累加。

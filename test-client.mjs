@@ -119,7 +119,8 @@ const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() 
 const renderSettled = async () => { let t = renderOnce(); await flush(); t = renderOnce(); await flush(); return t }
 
 // ── ensureCss 回归防护：模拟浏览器 document ────────────────────────────────
-// ensureCss 曾因引用重构后不可见的变量，在真实浏览器抛 ReferenceError（页面白屏）；
+// ensureCss 曾引用重构后不在其作用域内的 name（浏览器里等于 window.name=""），
+// 导致 data-plugin-css 写成空串、去重失效、每次渲染重复注入 <style>；
 // 这里让 document 存在，覆盖「有 DOM 时注入样式」这条此前测不到的路径。
 const injectedStyles = []
 const makeEl = () => ({ dataset: {}, textContent: '', click() {}, remove() {}, style: {} })
