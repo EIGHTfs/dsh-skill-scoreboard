@@ -1,56 +1,79 @@
 ---
 name: dsh-skill-scoreboard
-description: skill 使用记分板（插件 dsh-skill-scoreboard 的用法说明）：完全用代码自动记录 AI 实际用过哪些 skill，无需手动记分。同时记录两种次数：count=按会话去重，loads=每次成功加载；设置页可切换。数据存插件 data/skill-usage.json；设置页可导入导出记分 JSON。处理「skill 用了多少次」「哪个 skill 用得多」「skill 使用统计」「记分板数据在哪」「手动记分 vs 自动记分」「导入导出记分」类场景时加载；与 skill-usage-session-log（会话 skill 留痕）、skill-cite-sources（固化必说依据）配套。
-whenToUse: 需要查 skill 使用次数/热度排行、确认某 skill 是否被用过、了解记分板数据来源与更新方式时。
-generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级为插件 dsh-skill-scoreboard 代码级自动记录）
+description: skill 使用记分板（插件 dsh-skill-scoreboard 的用法说明）：完全用代码自动记录 AI 实际用过哪些 skill，无需手动记分。同时记录两种次数：count=按会话去重，loads=每次成功加载；并记录会话维度（每个会话加载过哪些 skill、各几次）。设置页三选项卡：Skill 排行（两种规则可翻页+分页）/ 会话榜（按去重 skill 数排序）/ 管理（导入导出）。数据存 DSH_HOME/.dsh/skill-scoreboard/skill-usage.json。处理「skill 用了多少次」「哪个 skill 用得多」「skill 使用统计」「记分板数据在哪」「哪个会话用过 skill」「手动记分 vs 自动记分」「导入导出记分」类场景时加载；与 skill-usage-session-log（会话留痕）、skill-cite-sources（固化必说依据）配套。
+whenToUse: 需要查 skill 使用次数/热度排行、确认某 skill 是否被用过、查某会话加载过哪些 skill、了解记分板数据结构或导入导出记分数据时。
+generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级为插件 dsh-skill-scoreboard 代码级自动记录）；2026-09-10 更新至 v1.8.0 三选项卡 + 会话榜
 ---
 
 # skill 使用记分板（dsh-skill-scoreboard 插件）
 
-> 2026-09-02 由手动 `skill-scoreboard.md` 记分板升级为**插件代码级自动记录**。
-> 核心一句话：**模型每实际加载一个 skill，插件自动 +1——不用 AI 手动记分。**
+> 2026-09-02 由手动 `skill-scoreboard.md` 记分板升级为**插件代码级自动记录**；2026-09-10 v1.8.0 增加会话维度排行榜与三选项卡页面。
 
-## 一、自动记录机制
+> 核心一句话：**模型每实际加载一个 skill，插件自动记一笔**——无需 AI 手动维护。
 
-- **hook 点**：监听 `tools/result`（skill 工具真正执行完、结果已冻结）
-- **判定**：`exec.name === "skill"` 且结果非错误 → 取 `arguments.name` 记分
-- **两种记分（v1.6.0）**：`count` 按会话去重（同会话同一 skill 只计 1，跨会话累加）；`loads` 每次成功加载都 +1。`callId` 防同一调用重复写
-- **数据**：存插件 `data/skill-usage.json`，随仓库 git 版本管理可提交
-- **展示（v1.2.0+）**：只读接口 `GET /api/skill-scoreboard` 返回按次数降序记分表；浏览器半侧 v1.3.0 起挂在 **设置 → 侧边栏 →「Skill 记分板」** 独立页面（`settings.section`）；v1.6.0 可切换两种记分规则
-- **导入导出（v1.5.0）**：设置页「导出 / 导入」；`GET /api/skill-scoreboard/export` 下载 JSON；`POST /api/skill-scoreboard/import?merge=true|false` 合并或整表替换。数据文件父目录不存在时自动创建
-- **注入（v1.4.0+）**：`agent/pre-step` 与 dsh-git-push 相同时机，每个 agent 首次 step 注入一次「记分榜 Top N + skill 实际路径」（路径经 `skills` 服务解析并兜底扫描技能仓库/工作区，仅供 AI 参考；设置页 UI 不显示路径）；配置 `injectEnabled` / `injectTopN`
-- **不要扫 `session.events`**：Session 没有公开 `events` 字段；`agent/pre-step` 也发生在本步 skill 调用之前
+## 一、工作原理
 
-## 二、数据结构
+- **hооk 点**：监听 `tools/result`（skill 真正执行完、结果已冻结）
+- **判定**：`exec.name === "skill"` 且结果非错误 → 取 `arguments.name`
+- **两种次数（v1.6.0+）**：`count` 按会话去重（同会话同一 skill 只计 1，跨会话累加）；`loads` 每次成功加载都 +1。`callId` 防同一调用重复写
+- **会话维度（v1.8.0+）**：顶层 `sessions` 表记录每个会话加载过哪些 skill、各几次（`loads` / `distinct` / `skills`），供会话排行榜使用
+- **数据**：存 `$DSH_HOME/.dsh/skill-scoreboard/skill-usage.json`（v2 结构）
+- **展示（v1.2.0+）**：只读接口 `GET /api/skill-scoreboard` 返回 skill 榜 + 会话榜 + 概览字段；浏览器半侧挂在 **设置 → 侧边栏 →「Skill 记分板」**（`settings.section` 独立页面），页面为**三选项卡**
+- **导入导出（v1.5.0+）**：`GET /api/skill-scoreboard/export` 下载 JSON；`POST /api/skill-scoreboard/import?merge=true|false` 合并或整表替换（在「管理」选项卡内操作）
+- **注入（v1.4.0+）**：`agent/pre-step` 与 dsh-git-push 相同时机，每个 agent 首次 step 注入一次「记分榜 Top N + 每个 skill 实际路径」（路径经 `skills` 服务解析与技能仓库/工作区扫描兜底，仅供 AI 参考；设置页 UI 不显示路径）。开关 `injectEnabled` / `injectTopN`
+- **不扫会话日志**：`Session` 没有公开 `events` 字段，且 `agent/pre-step` 也发生在本步 skill 调用之前，因此记分只在 `tools/result` 发生
+
+## 二、数据结构（v2）
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "skills": {
-    "analyze-then-confirm": { "count": 5, "loads": 8, "lastUsedAt": "2026-09-02T03:30:00.000Z", "sessions": ["session-abc", "session-def"] }
-  }
+    "analyze-then-confirm": { "count": 5, "loads": 8, "lastUsedAt": "2026-09-02T03:30:00.000Z", "sessions": ["session-abc", "session-def"], "callIds": ["call-1"] }
+  },
+  "sessions": {
+    "session-abc": {
+      "loads": 3,
+      "distinct": 2,
+      "skills": { "analyze-then-confirm": 2, "full-context-read": 1 },
+      "firstUsedAt": "2026-09-02T03:00:00.000Z",
+      "lastUsedAt": "2026-09-02T03:30:00.000Z"
+    }
+  },
+  "updatedAt": "2026-09-02T03:30:00.000Z"
 }
 ```
 
 - `count`：按会话去重的累计次数（跨会话累加）
 - `loads`：每次成功加载都 +1 的累计次数
-- `lastUsedAt`：最近生效时间（ISO）
-- `sessions`：已计分的会话 id 列表（用于去重判定）
+- `sessions`（skill 记录内）：已计分的会话 id 列表（用于去重判定）
 - `callIds`：已计分的工具调用 id（防同一调用重复写）
+- `sessions`（顶层）：会话表；`distinct` = 该会话加载过的不同 skill 数（会话榜排序主键，越多越靠前），`skills` = 每个 skill 的加载次数
+- `loadsEstimated`：v1 旧数据迁移标记（无法还原每次加载，`loads` 用 `distinct` 兜底估计）
+- 旧 v1 数据在插件启动读取时自动迁移为 v2；导出/导入同样兼容 v1 体
 
-## 三、使用方式
+## 三、页面（三选项卡）
 
-1. **查排行**：读插件 `data/skill-usage.json`，按 `count` 或 `loads` 降序即热度排行；设置页可切换两种规则
-2. **AI 自动参考（v1.4.0）**：每个 agent 会话首次 step，插件自动注入「大家常用哪些 skill + 它们实际在哪」，无需手动查；要关掉用配置 `injectEnabled: false`，条数 `injectTopN`
-3. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
-4. **手动维护**：正常无需手动改；如需调整（如删除误计），直接编辑数据文件对应项
+设置 → 侧边栏 →「Skill 记分板」：
 
-## 四、与旧记分板的关系
+1. **Skill**：skill 排行；二级翻页切换「按会话去重 / 按全部加载」两种规则；表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，当前规则列高亮；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」）
+2. **会话**：加载过 skill 的会话排行榜，**去重 skill 数越多越靠前**（并列按加载次数、再按最近活动）；显示会话标题（取不到则短 id）；点击标题打开该会话；`▸` 展开看该会话加载过哪些 skill；同样分页
+3. **管理**：数据概览（skill 数 / 会话数 / 累计去重 / 累计加载 / 最近写入 / 数据文件路径 / v1 迁移估计提示）+ 导出 JSON + 导入 JSON（合并 / 覆盖）
 
-- 旧 `skill-scoreboard.md`（2026-08-24 手动记分）的 33 个 skill 分数已**迁移**进插件数据文件（`sessions: ["__migrated__"]` 标注）
+## 四、使用方式
+
+1. **查排行**：读 `skill-usage.json`，按 `count` 或 `loads` 降序即热度排行；设置页可切换两种规则并翻页
+2. **查会话**：设置页「会话」选项卡，或读数据文件的顶层 `sessions` 表按 `distinct` 降序
+3. **AI 自动参考（v1.4.0）**：每个 agent 会话首次 step，插件自动注入「大家常用哪些 skill + 它们实际在哪」；要关掉用配置 `injectEnabled: false`，条数 `injectTopN`
+4. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
+5. **手动维护**：正常无需手动改；如需调整（如删除误计），直接编辑数据文件对应项，或在「管理」选项卡导入一份修正后的 JSON
+
+## 五、与旧记分板的关系
+
+- 旧 `skill-scoreboard.md`（2026-08-24 手动记分）的 33 个 skill 分数已**迁移**进插件数据文件（历史上以 `sessions: ["__migrated__"]` 标注）
 - 后续全部由插件自动累计，不再手动 +1
 
-## 五、配套
+## 六、配套
 
 - `skill-usage-session-log`：每个会话把加载的 skill 清单写入 `<会话id>.md`（手动留痕，与自动记分互补）
 - `skill-cite-sources`：固化 skill 必说依据来源

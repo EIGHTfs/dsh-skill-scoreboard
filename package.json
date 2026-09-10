@@ -1,7 +1,7 @@
 {
   "name": "dsh-skill-scoreboard",
-  "version": "1.6.0",
-  "description": "DSH skill 使用记分板：同时记录按会话去重与每次加载两种次数，设置页可切换；agent/pre-step 注入记分榜与 skill 实际路径；导入导出记分 JSON。",
+  "version": "1.8.0",
+  "description": "DSH skill 使用记分板：同时记录按会话去重与每次加载两种次数；设置页三选项卡（Skill 排行 / 会话榜 / 管理），Skill 内两种排行可翻页并分页，会话榜按去重 skill 数排列；agent/pre-step 注入记分榜与 skill 实际路径；导入导出记分 JSON。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
