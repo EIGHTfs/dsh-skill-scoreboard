@@ -2,6 +2,7 @@
 import {
   apply, name, buildScoreboardInjection, normalizeScoreboardPayload, mergeScoreboard,
   ensureDataDir, resolveSkillPath, migrateToV2, deriveSessionsFromSkills,
+  makeSkillPathIndex, skillNameFromReadArgs, makeTitleResolver, foldTitleFromEvents,
 } from './lib/index.js';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -210,6 +211,47 @@ try {
   const afterImport = JSON.parse(readFileSync(dataFile, 'utf8'));
   ok(afterImport.skills['imported-skill']?.count === 7 && !afterImport.skills['foo-skill'], 'import merge=false 整表替换');
   ok(afterImport.sessions['sImp']?.skills?.['imported-skill'] === 1, 'import v1 体自动补会话表');
+
+  // ---- v1.8.2：read 工具直接读 skill 文件也记分 ----
+  const readSkillFile = join(root, 'read-probe-skill.md');
+  writeFileSync(readSkillFile, '# read-probe-skill\n', 'utf8');
+  const fakeSkillsSvc = {
+    get: async () => ({ path: readSkillFile }),
+    list: async () => [{ name: 'read-probe-skill', path: readSkillFile }],
+  };
+  const pathIndex = makeSkillPathIndex(() => ['read-probe-skill'], fakeSkillsSvc);
+  await pathIndex.build();
+  ok(skillNameFromReadArgs({ file_path: readSkillFile }, pathIndex) === 'read-probe-skill', 'read 命中 skill 文件路径 → 解析出 skill 名');
+  ok(skillNameFromReadArgs({ file_path: '/nonexistent/nope.md' }, pathIndex) === '', 'read 未命中任何 skill 文件 → 空串');
+  ok(skillNameFromReadArgs({ file_path: readSkillFile }) === '', '不给 pathIndex 的 read 不匹配');
+  const lastSegment = readSkillFile.split('/').pop();
+  ok(skillNameFromReadArgs({ file_path: lastSegment }, pathIndex) === 'read-probe-skill', 'read 用相对名（basename）也能命中');
+
+  // ---- v1.8.2：会话标题解析器 ----
+  // events 折叠
+  ok(foldTitleFromEvents([]) === '', '空事件 → 空标题');
+  ok(foldTitleFromEvents([{ type: 'message/user', data: {} }, { type: 'session/title', data: { title: '第二标题' } }, { type: 'session/title', data: { title: '最新标题' } }]) === '最新标题',
+    'foldTitleFromEvents 取最近一条 session/title');
+  ok(foldTitleFromEvents([{ type: 'session/title', data: { title: '   ' } }]) === '', '空白标题不计');
+  // 完整解析器：无 sessions/persistence 时回退会话短 id（前 8 位裸 uuid）
+  const resolver = makeTitleResolver({ get: () => null });
+  ok((await resolver('session-abc123')) === 'abc123', '无服务时标题回退会话短 id');
+  ok((await resolver('abc123')) === 'abc123', '裸 id 短 id 兜底不变');
+  // 有活跃快照时取 displayTitle
+  const resolverLive = makeTitleResolver({
+    get: (n) => (n === 'sessions' ? {
+      list: { getSnapshot: () => ({ byId: { 'session-live1': { displayTitle: '活性标题' } } }) },
+    } : null),
+  });
+  ok((await resolverLive('session-live1')) === '活性标题', '活跃快照 displayTitle 生效');
+  ok((await resolverLive('live1')) === '活性标题', '裸 id 也能命中活跃快照（补 session- 前缀）');
+  // 有 persistence 时从日志折叠
+  const resolverPersist = makeTitleResolver({
+    get: (n) => (n === 'sessionPersistence' ? {
+      inspect: async (id) => ({ events: [{ type: 'session/title', data: { title: '持久标题-' + id } }], meta: {} }),
+    } : null),
+  });
+  ok((await resolverPersist('cold1')) === '持久标题-cold1', '历史会话从持久化日志折叠 session/title');
 
   // ---- 损坏数据文件不崩 ----
   writeFileSync(dataFile, '{broken', 'utf8');

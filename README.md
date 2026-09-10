@@ -1,6 +1,6 @@
 # dsh-skill-scoreboard
 
-> skill 使用记分板：模型每真正加载一个 skill 就自动记分，无需手动维护 `skill-scoreboard.md`。运行时数据写在 `$DSH_HOME/.dsh/skill-scoreboard/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面；v1.4.0 起在 `agent/pre-step` 把记分榜与 skill 实际路径注入给 AI；v1.6.0 同时记录两种记分规则（按会话去重 / 每次加载）；v1.8.0 页面改为**三选项卡**（Skill 排行 / 会话榜 / 管理）并新增会话维度排行榜；v1.8.1 Skill 排行固定按会话去重降序（去重与加载两种次数同列显示，不再切换规则）。
+> skill 使用记分板：模型每真正加载一个 skill 就自动记分，无需手动维护 `skill-scoreboard.md`。运行时数据写在 `$DSH_HOME/.dsh/skill-scoreboard/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面；v1.4.0 起在 `agent/pre-step` 把记分榜与 skill 实际路径注入给 AI；v1.6.0 同时记录两种记分规则（按会话去重 / 每次加载）；v1.8.0 页面改为**三选项卡**（Skill 排行 / 会话榜 / 管理）并新增会话维度排行榜；v1.8.1 Skill 排行固定按会话去重降序（去重与加载两种次数同列显示，不再切换规则）；v1.8.2 会话榜显示**持久化会话标题**（历史会话也能解析出标题，取不到则显示短 id），记分扩展为 **read 工具直接读 skill 文件同样记分**。
 
 ## 目录
 
@@ -99,8 +99,8 @@ node test-client.mjs       # 前端渲染冒烟
 
 | 入口 | 说明 |
 |---|---|
-| `tools/result` | 观察 skill 工具最终结果并记分（同步更新 skill 榜与会话表） |
-| `GET /api/skill-scoreboard` | 只读：返回 `{ok, total, totalLoads, recorded, updatedAt, dataFile, skills:[…], sessions:[…]}`。`skills` 按 `count` 降序（最多 200 条），`sessions` 按 `distinct` 降序（并列按 `loads`、再按 `lastUsedAt`，最多 200 条） |
+| `tools/result` | 观察 skill 工具最终结果记分；**v1.8.2 起 read 工具直接读 skill 文件路径同样记分**（同步更新 skill 榜与会话表） |
+| `GET /api/skill-scoreboard` | 只读：返回 `{ok, total, totalLoads, recorded, updatedAt, dataFile, skills:[…], sessions:[…]}`。`skills` 按 `count` 降序（最多 200 条），`sessions` 按 `distinct` 降序（并列按 `loads`、再按 `lastUsedAt`，最多 200 条）；v1.8.2 起每行带 `title`（宿主解析的持久化会话标题，兜底短 id） |
 | `GET /api/skill-scoreboard/export` | 导出完整记分 JSON（`version:2 / skills / sessions / updatedAt / exportedAt`） |
 | `POST /api/skill-scoreboard/import?merge=true\|false` | 导入记分 JSON；默认 merge 累加合并（含会话表），`merge=false` 整表替换。v1 旧格式（无 `sessions`）自动反推会话表 |
 | 配置 `enabled` | `false` 时不挂监听 |
@@ -191,13 +191,14 @@ PY
 | 选项卡 | 内容 |
 |---|---|
 | **Skill** | skill 使用排行，固定按**会话去重**次数降序（并列按名称）。表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，去重列为高亮主列、加载列常显；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」） |
-| **会话** | 加载过 skill 的会话排行榜。按 `distinct`（去重 skill 数）降序，**越多越靠前**，并列按 `loads`、再按最近活动；行显示会话标题（经宿主 `sessions` 服务解析 `displayTitle`，取不到则显示短 id）与短 id、去重数、加载数、最近活动；点击标题可打开该会话；行首 `▸` 展开显示该会话加载过的 skill；同样分页 |
+| **会话** | 加载过 skill 的会话排行榜。按 `distinct`（去重 skill 数）降序，**越多越靠前**，并列按 `loads`、再按最近活动；行显示会话标题（v1.8.2：宿主依次经活跃 `sessions` 快照 `displayTitle` → 持久化日志 `session/title` 事件 → 工作目录名 → 短 id 解析；历史会话也能出标题，不再一律「无标题」）与短 id、去重数、加载数、最近活动；点击标题可打开该会话；行首 `▸` 展开显示该会话加载过的 skill；同样分页 |
 | **管理** | 数据概览（skill 数 / 会话数 / 累计去重 / 累计加载 / 最近写入 / 数据文件路径 / v1 迁移估计提示）+ 导出 JSON + 导入 JSON（合并 / 覆盖两种模式）+ 顶部刷新 |
 
 ## 版本列表
 
 | 版本 | 内容 |
 |------|------|
+| 1.8.2 | **会话标题 + read 直接读文件记分**：会话榜此前全部显示「无标题会话」——根因是 client 侧 `sessions.list` 只含活跃会话、历史会话查不到标题。改为宿主半侧解析标题注入 API：①活跃会话快照 `displayTitle` → ②`sessionPersistence.inspect` 读日志折叠 `session/title` 事件（与 dsh-session-conductor 同法）→ ③`cwd` 目录名 → ④短 id 兜底，60s TTL 缓存防全量解压日志。记分扩展：`tools/result` 中 `read` 工具若 `file_path` 命中已知 skill 文件路径（懒构建路径索引，TTL 5min）同样记一次分——AI 直接读 skill 文件 = 加载。`buildSnapshot` 变异步注入 title；两套测试各补 read 记分 / 标题解析断言 |
 | 1.8.1 | **Skill 排行去掉规则切换**：两种次数本就同列显示、切换选项只改高亮，故移除「按会话去重 / 按全部加载」二级选项及其描述，固定按会话去重降序；同步精简 `sortSkillRows` 与 subTab 样式。**修复样式重复注入**：`ensureCss` 在 v1.8.0 重构后引用了不在其作用域内的 `name`（浏览器里解析为 `window.name`，值为空串），于是 `data-plugin-css` 被写成空串、去重查询永不命中，每次渲染都往 `<head>` 重复插入一份 `<style>`；改用顶层常量 `NS` 后只注入一次。`test-client.mjs` 补该 DOM 注入路径的回归断言 |
 | 1.8.0 | **三选项卡 + 会话榜**：页面改仿插件市场的顶部选项卡「Skill / 会话 / 管理」；Skill 内两种排行（去重 / 全部加载）改为二级翻页并支持分页；新增会话维度排行榜（按去重 skill 数降序，可展开看该会话加载过的 skill，可打开会话）；管理页收纳导入导出。数据升级 **v2**：新增顶层 `sessions` 会话表（记分时同步记录会话 id 与每个 skill 的加载次数），旧 v1 数据启动时自动迁移；API 返回会话榜与概览字段；新增 `test-client.mjs` 前端冒烟测试 |
 | 1.7.0 | 设置页显示模式改为下拉列表选择（按会话去重 / 每次加载 / 全部），导入支持合并 / 覆盖模式选择 |

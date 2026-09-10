@@ -51,6 +51,7 @@ const API = {
   })),
   sessions: Array.from({ length: 25 }, (_, i) => ({
     id: 'session-000' + i + '-abcd',
+    title: i === 0 ? '首个会话真实标题' : '',
     loads: 25 - i,
     distinct: 25 - i,
     skills: ['full-context-read', 'dsh-repo-index'],
@@ -153,6 +154,8 @@ view = await renderSettled()
 ok(view.texts.includes('加载过 skill 的会话排行：去重 skill 数越多越靠前，并列按加载次数。'), '会话选项卡描述渲染')
 ok(view.nodes.filter((n) => n.p && n.p.className === 'dshsb_row').length === 20, '会话首页 20 行')
 ok(view.texts.some((t) => String(t).includes('0000')), '会话短 id 渲染')
+ok(view.texts.includes('首个会话真实标题'), 'API 提供的行标题直接显示（不再显示无标题）')
+ok(view.texts.some((t) => String(t).includes('0001')), '无 title 的行名字兜底为短 id（第 2 行起）')
 const expandBtn = view.nodes.find((n) => n.p && String(n.p.className || '').includes('dshsb_expandBtn'))
 ok(!!expandBtn, '会话行有展开按钮')
 expandBtn.p.onClick()

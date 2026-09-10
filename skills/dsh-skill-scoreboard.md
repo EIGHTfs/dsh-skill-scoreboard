@@ -86,3 +86,6 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - **jsdom 不能当作浏览器判据**：jsdom 没有 `window.name` 这类浏览器全局，同一段代码在 jsdom 抛 `ReferenceError`、在真实浏览器却照常执行——据此下"页面白屏"的结论是**误判**。凡是「浏览器里会怎样」的判断，必须在真实 chromium 里跑一遍再定论；jsdom 只用于渲染结构与样式断言。
 - **宿主半侧改完要重启才生效**：`lib/index.js`（记分钩子、只读 API）的改动需重启 web profile；`lib/client.js` 可热更新。三份副本（源码仓 / `local-plugins/` / `node_modules/`）改完必须同步并用 `md5sum` 核对一致。
 - **两种次数同时维护**：`count`（按会话去重）与 `loads`（每次加载）同时写入，改记分逻辑时不要只更新其中一个；`sessions` 会话表同样要同步累加。
+
+- **会话标题不在 SessionHeader 里**：持久化会话的标题来自日志 `session/title` 事件，不在 header 的 `id/cwd` 字段里。v1.8.0 时用 client 侧 `sessions.list.getSnapshot().byId[id].displayTitle` 解析——**该列表只含活跃会话**，历史会话全部查不到 → 会话榜全是「无标题会话」（用户 2026-09-11 反馈）。v1.8.2 改为宿主半侧解析：`makeTitleResolver` 依次走 活跃快照 → `sessionPersistence.inspect(id)` 读日志折叠 `session/title` 事件（dsh-session-conductor 同法，`foldTitleFromEvents` 取最近一条）→ `cwd` 目录名 → 短 id 兜底；60s TTL 缓存防每次 API 全量解压日志。**经验：标题类数据不要依赖活跃会话快照，历史会话标题从持久化日志读。**
+- **read 工具记分是启发式匹配**：`tools/result` 里 `read` 的 `file_path` 必须命中已知 skill 文件路径（`makeSkillPathIndex` 懒构建的路径→skill 名索引，TTL 5min）才记分；路径解析不了的 read 不记。命中即记一次 `loads`（会话去重 `count` 仍生效），与 skill 工具记分共用 `callIds` 去重——同一文件被 skill 工具和 read 各触一次算两次不同调用（符合「两种途径都发生过」的语义）。
