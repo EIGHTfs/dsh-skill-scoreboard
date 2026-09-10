@@ -118,23 +118,32 @@ const render = () => renderOnce()
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
 const renderSettled = async () => { let t = renderOnce(); await flush(); t = renderOnce(); await flush(); return t }
 
+// ── ensureCss 回归防护：模拟浏览器 document ────────────────────────────────
+// ensureCss 曾因引用重构后不可见的变量，在真实浏览器抛 ReferenceError（页面白屏）；
+// 这里让 document 存在，覆盖「有 DOM 时注入样式」这条此前测不到的路径。
+const injectedStyles = []
+const makeEl = () => ({ dataset: {}, textContent: '', click() {}, remove() {}, style: {} })
+globalThis.document = {
+  querySelector: () => null,
+  createElement: makeEl,
+  head: { appendChild: (el) => injectedStyles.push(el) },
+  body: { appendChild: () => {} },
+}
+
 // 默认页（Skill 选项卡）
 let view = await renderSettled()
+ok(injectedStyles.some((el) => el.dataset.pluginCss === 'dsh-skill-scoreboard'), 'ensureCss 在浏览器环境注入插件样式（不抛错）')
 ok(view.cls.includes('dshsb_tabs'), '渲染出顶部选项卡容器')
 const tabBtns = view.nodes.filter((n) => n.p && String(n.p.className || '').includes('dshsb_tab') && !String(n.p.className).includes('dshsb_tabs'))
 ok(tabBtns.length === 3, `三个选项卡按钮（实际 ${tabBtns.length}）`)
 ok(['Skill', '会话', '管理'].every((t) => view.texts.includes(t)), '选项卡文案为 Skill / 会话 / 管理')
-ok(view.cls.filter((c) => c.split(' ').some((x) => x === 'dshsb_subTab' || x === 'dshsb_subTabOn')).length === 2, 'Skill 内两个二级翻页按钮（去重 / 全部加载）')
-ok(view.texts.includes('按会话去重') && view.texts.includes('按全部加载'), '二级翻页文案正确')
+ok(view.cls.filter((c) => c.split(' ').some((x) => x === 'dshsb_subTab' || x === 'dshsb_subTabOn')).length === 0, 'Skill 内已无「去重 / 全部加载」二级切换选项')
+ok(!view.texts.includes('按会话去重') && !view.texts.includes('按全部加载'), '不再渲染两种排行的切换文案')
+ok(view.nodes.filter((n) => n.p && n.p.className === 'dshsb_count dshsb_countHot').length === 20, 'Skill 行去重列固定高亮（20 行）')
+ok(view.nodes.filter((n) => n.p && n.p.className === 'dshsb_count dshsb_countDim').length === 20, 'Skill 行加载列常显（20 行，不高亮）')
 ok(view.cls.some((c) => c.includes('dshsb_pagerPages')), '存在分页控件')
 ok(view.texts.some((t) => String(t).includes('共 30 条')), '分页信息含总条数')
 ok(view.nodes.filter((n) => n.p && n.p.className === 'dshsb_row').length === 20, 'Skill 首页 20 行（默认每页 20）')
-
-// 切到「全部加载」次级翻页
-const subLoads = view.nodes.find((n) => n.p && String(n.p.className || '').includes('dshsb_subTab') && n.c.includes('按全部加载'))
-subLoads.p.onClick()
-view = await renderSettled()
-ok(view.nodes.some((n) => n.p && String(n.p.className || '').includes('dshsb_subTabOn') && n.c.includes('按全部加载')), '切到「按全部加载」后高亮生效')
 
 // 切到会话选项卡
 const tabSession = view.nodes.find((n) => n.p && n.p.role === 'tab' && n.c.includes('会话'))

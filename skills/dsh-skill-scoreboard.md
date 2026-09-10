@@ -1,13 +1,13 @@
 ---
 name: dsh-skill-scoreboard
-description: skill 使用记分板（插件 dsh-skill-scoreboard 的用法说明）：完全用代码自动记录 AI 实际用过哪些 skill，无需手动记分。同时记录两种次数：count=按会话去重，loads=每次成功加载；并记录会话维度（每个会话加载过哪些 skill、各几次）。设置页三选项卡：Skill 排行（两种规则可翻页+分页）/ 会话榜（按去重 skill 数排序）/ 管理（导入导出）。数据存 DSH_HOME/.dsh/skill-scoreboard/skill-usage.json。处理「skill 用了多少次」「哪个 skill 用得多」「skill 使用统计」「记分板数据在哪」「哪个会话用过 skill」「手动记分 vs 自动记分」「导入导出记分」类场景时加载；与 skill-usage-session-log（会话留痕）、skill-cite-sources（固化必说依据）配套。
+description: skill 使用记分板（插件 dsh-skill-scoreboard 的用法说明）：完全用代码自动记录 AI 实际用过哪些 skill，无需手动记分。同时记录两种次数：count=按会话去重，loads=每次成功加载；并记录会话维度（每个会话加载过哪些 skill、各几次）。设置页三选项卡：Skill 排行（按会话去重降序+分页）/ 会话榜（按去重 skill 数排序）/ 管理（导入导出）。数据存 DSH_HOME/.dsh/skill-scoreboard/skill-usage.json。处理「skill 用了多少次」「哪个 skill 用得多」「skill 使用统计」「记分板数据在哪」「哪个会话用过 skill」「手动记分 vs 自动记分」「导入导出记分」类场景时加载；与 skill-usage-session-log（会话留痕）、skill-cite-sources（固化必说依据）配套。
 whenToUse: 需要查 skill 使用次数/热度排行、确认某 skill 是否被用过、查某会话加载过哪些 skill、了解记分板数据结构或导入导出记分数据时。
-generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级为插件 dsh-skill-scoreboard 代码级自动记录）；2026-09-10 更新至 v1.8.0 三选项卡 + 会话榜
+generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级为插件 dsh-skill-scoreboard 代码级自动记录）；2026-09-10 更新至 v1.8.0 三选项卡 + 会话榜，v1.8.1 去掉排行规则切换（固定去重降序）
 ---
 
 # skill 使用记分板（dsh-skill-scoreboard 插件）
 
-> 2026-09-02 由手动 `skill-scoreboard.md` 记分板升级为**插件代码级自动记录**；2026-09-10 v1.8.0 增加会话维度排行榜与三选项卡页面。
+> 2026-09-02 由手动 `skill-scoreboard.md` 记分板升级为**插件代码级自动记录**；2026-09-10 v1.8.0 增加会话维度排行榜与三选项卡页面，v1.8.1 Skill 排行固定按会话去重降序。
 
 > 核心一句话：**模型每实际加载一个 skill，插件自动记一笔**——无需 AI 手动维护。
 
@@ -56,13 +56,13 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 
 设置 → 侧边栏 →「Skill 记分板」：
 
-1. **Skill**：skill 排行；二级翻页切换「按会话去重 / 按全部加载」两种规则；表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，当前规则列高亮；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」）
+1. **Skill**：skill 排行，固定按会话去重次数降序；表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，去重列为高亮主列、加载列常显；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」）
 2. **会话**：加载过 skill 的会话排行榜，**去重 skill 数越多越靠前**（并列按加载次数、再按最近活动）；显示会话标题（取不到则短 id）；点击标题打开该会话；`▸` 展开看该会话加载过哪些 skill；同样分页
 3. **管理**：数据概览（skill 数 / 会话数 / 累计去重 / 累计加载 / 最近写入 / 数据文件路径 / v1 迁移估计提示）+ 导出 JSON + 导入 JSON（合并 / 覆盖）
 
 ## 四、使用方式
 
-1. **查排行**：读 `skill-usage.json`，按 `count` 或 `loads` 降序即热度排行；设置页可切换两种规则并翻页
+1. **查排行**：读 `skill-usage.json`，按 `count`（会话去重）降序即页面排行；想看总加载量就看同列的 `loads`，两者同时显示在同一行
 2. **查会话**：设置页「会话」选项卡，或读数据文件的顶层 `sessions` 表按 `distinct` 降序
 3. **AI 自动参考（v1.4.0）**：每个 agent 会话首次 step，插件自动注入「大家常用哪些 skill + 它们实际在哪」；要关掉用配置 `injectEnabled: false`，条数 `injectTopN`
 4. **确认某 skill 是否用过**：查该 skill 的 `count` 是否 > 0
@@ -78,3 +78,10 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - `skill-usage-session-log`：每个会话把加载的 skill 清单写入 `<会话id>.md`（手动留痕，与自动记分互补）
 - `skill-cite-sources`：固化 skill 必说依据来源
 - `any-md-is-skill`：md 即 skill 的通用规则
+
+## 七、开发注意（踩过的坑）
+
+- **顶层函数只能引用顶层常量**：`lib/client.js` 中 `createModule` 之外的顶层函数（如 `ensureCss`）不能引用 `createModule` 内的局部名（`name` / `ui` / `React`）。v1.8.0 重构时 `ensureCss` 引用了 `name`，浏览器执行即抛 `ReferenceError`，设置页**白屏**（v1.8.1 修复：改用顶层常量 `NS`）；需要共享给顶层使用的 React 走模块级 `ReactRef`。
+- **改前端必须做真实浏览器自检**：单测的 mock React 环境没有 `document`，会走 `ensureCss` 的提前 return 分支，测不到 DOM 注入路径（白屏 bug 就是这样漏掉的）。做法：jsdom + 真实 react-dom 渲染出 DOM，再用 chromium `--dump-dom` 读 `getComputedStyle` 核对颜色/列高亮，并用 `--enable-logging=stderr` 抓 JS 异常。
+- **宿主半侧改完要重启才生效**：`lib/index.js`（记分钩子、只读 API）的改动需重启 web profile；`lib/client.js` 可热更新。三份副本（源码仓 / `local-plugins/` / `node_modules/`）改完必须同步并用 `md5sum` 核对一致。
+- **两种次数同时维护**：`count`（按会话去重）与 `loads`（每次加载）同时写入，改记分逻辑时不要只更新其中一个；`sessions` 会话表同样要同步累加。

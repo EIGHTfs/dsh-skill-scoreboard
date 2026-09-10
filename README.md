@@ -1,6 +1,6 @@
 # dsh-skill-scoreboard
 
-> skill 使用记分板：模型每真正加载一个 skill 就自动记分，无需手动维护 `skill-scoreboard.md`。运行时数据写在 `$DSH_HOME/.dsh/skill-scoreboard/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面；v1.4.0 起在 `agent/pre-step` 把记分榜与 skill 实际路径注入给 AI；v1.6.0 同时记录两种记分规则（按会话去重 / 每次加载）；v1.8.0 页面改为**三选项卡**（Skill 排行 / 会话榜 / 管理），两种排行可翻页并分页，并新增会话维度排行榜。
+> skill 使用记分板：模型每真正加载一个 skill 就自动记分，无需手动维护 `skill-scoreboard.md`。运行时数据写在 `$DSH_HOME/.dsh/skill-scoreboard/skill-usage.json`，默认 git 忽略。v1.3.0 在**设置侧边栏**提供「Skill 记分板」页面；v1.4.0 起在 `agent/pre-step` 把记分榜与 skill 实际路径注入给 AI；v1.6.0 同时记录两种记分规则（按会话去重 / 每次加载）；v1.8.0 页面改为**三选项卡**（Skill 排行 / 会话榜 / 管理）并新增会话维度排行榜；v1.8.1 Skill 排行固定按会话去重降序（去重与加载两种次数同列显示，不再切换规则）。
 
 ## 目录
 
@@ -48,7 +48,7 @@ agent/pre-step（每个 agent 首次 step）
 | 路径 | 作用 |
 |---|---|
 | `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，同时记 `count`（会话去重）、`loads`（每次加载）与 `sessions` 会话表；注册 `GET /api/skill-scoreboard`（含会话榜）与 export/import；`agent/pre-step` 注入记分榜 + skill 实际路径 |
-| `lib/client.js` | 浏览器半侧：注册 `settings.section` 侧边栏「Skill 记分板」+ 三选项卡页面（Skill 排行 / 会话榜 / 管理），二级翻页 + 分页、会话标题解析与打开会话、导入导出，中英双语 |
+| `lib/client.js` | 浏览器半侧：注册 `settings.section` 侧边栏「Skill 记分板」+ 三选项卡页面（Skill 排行 / 会话榜 / 管理），排行分页、会话标题解析与打开会话、导入导出，中英双语 |
 | `cordis.patch.yml` | bundle patch：insert `id: skill-scoreboard` |
 | `skills/dsh-skill-scoreboard.md` | 插件手册 skill |
 | `test-scoreboard.mjs` | 宿主半侧单测：记分去重 + 会话表 + v1→v2 迁移 + API/导入导出（mock ctx + 临时数据文件） |
@@ -190,7 +190,7 @@ PY
 
 | 选项卡 | 内容 |
 |---|---|
-| **Skill** | skill 使用排行。二级翻页切换「按会话去重 / 按全部加载」两种记分规则（切换即重排并回到第 1 页）；表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，当前规则列高亮；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」） |
+| **Skill** | skill 使用排行，固定按**会话去重**次数降序（并列按名称）。表格列 `# / skill / 去重次数 / 加载次数 / 最近使用`，去重列为高亮主列、加载列常显；列表分页（`« ‹ 页码… › »` + 每页 10/20/50 条 + 「共 N 条 · 第 p/x 页」） |
 | **会话** | 加载过 skill 的会话排行榜。按 `distinct`（去重 skill 数）降序，**越多越靠前**，并列按 `loads`、再按最近活动；行显示会话标题（经宿主 `sessions` 服务解析 `displayTitle`，取不到则显示短 id）与短 id、去重数、加载数、最近活动；点击标题可打开该会话；行首 `▸` 展开显示该会话加载过的 skill；同样分页 |
 | **管理** | 数据概览（skill 数 / 会话数 / 累计去重 / 累计加载 / 最近写入 / 数据文件路径 / v1 迁移估计提示）+ 导出 JSON + 导入 JSON（合并 / 覆盖两种模式）+ 顶部刷新 |
 
@@ -198,6 +198,7 @@ PY
 
 | 版本 | 内容 |
 |------|------|
+| 1.8.1 | **Skill 排行去掉规则切换**：两种次数本就同列显示、切换选项只改高亮，故移除「按会话去重 / 按全部加载」二级选项及其描述，固定按会话去重降序；同步精简 `sortSkillRows` 与 subTab 样式。**修复白屏**：`ensureCss` 在 v1.8.0 重构后引用了不在作用域内的变量，浏览器执行时抛 `ReferenceError` 导致设置页空白，改用顶层常量 `NS`；`test-client.mjs` 补该 DOM 注入路径的回归断言 |
 | 1.8.0 | **三选项卡 + 会话榜**：页面改仿插件市场的顶部选项卡「Skill / 会话 / 管理」；Skill 内两种排行（去重 / 全部加载）改为二级翻页并支持分页；新增会话维度排行榜（按去重 skill 数降序，可展开看该会话加载过的 skill，可打开会话）；管理页收纳导入导出。数据升级 **v2**：新增顶层 `sessions` 会话表（记分时同步记录会话 id 与每个 skill 的加载次数），旧 v1 数据启动时自动迁移；API 返回会话榜与概览字段；新增 `test-client.mjs` 前端冒烟测试 |
 | 1.7.0 | 设置页显示模式改为下拉列表选择（按会话去重 / 每次加载 / 全部），导入支持合并 / 覆盖模式选择 |
 | 1.6.0 | **两种记分规则可切换**：同时记录 `count`（按会话去重）与 `loads`（每次成功加载）；设置页可切换展示。注入文本同时带两种次数，并扫描兜底解析 skill 实际文件路径（`skills.get().path` 为空时仍能给出路径） |

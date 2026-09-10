@@ -11,3 +11,7 @@ data/skill-usage.json
 npm-debug.log*
 .npm/
 .pnpm-store/
+
+# 编辑备份/回收站（可恢复，不入库）
+.trash/
+*.bak
