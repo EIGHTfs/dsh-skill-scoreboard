@@ -1,0 +1,13 @@
+# 写法说明：顶层 insert 新建 loader 行（第三方 bundle patch 的标准写法）。
+# 无 insert 的顶层 - id 是「覆盖」已有 loader 行；基座没有 skill-scoreboard 这一行，
+# 覆盖式写法会让 bundle 层打空，插件市场报「目标不存在 / patch target not found」。
+# 对照（覆盖式，勿用）：
+# - id: skill-scoreboard
+#   name: dsh-skill-scoreboard
+#   config:
+#     enabled: true
+- insert:
+    - id: skill-scoreboard
+      name: dsh-skill-scoreboard
+      config:
+        enabled: true

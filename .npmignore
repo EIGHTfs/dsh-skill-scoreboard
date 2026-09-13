@@ -1,0 +1,8 @@
+# 排除编辑备份/回收站（npm pack 不再带 .bak）
+*.bak
+.trash/
+*.log
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lock
