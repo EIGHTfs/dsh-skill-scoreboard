@@ -206,6 +206,7 @@ PY
 
 | 版本 | 内容 |
 |------|------|
+| 1.0.3 | **打包修复 + 补 peer 声明**：`lib/` 下三份备份文件（`client.js.bak` / `index.js.bak` / `routes.js.bak`，共 78KB）虽未被 git 跟踪，但 `files` 白名单是目录级的（`lib`），`npm pack` 会把它们一并打进发布包 —— 已移入回收站，发布包文件数 16 → 13；新增 `peerDependencies` 声明宿主提供的 `@deepseek-ai/dsh-llm` 与 `@deepseek-ai/schemastery`，范围写成带显式预发布分支的形式（`>=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0`），避免 node-semver 只在「比较符元组与目标版本一致且自带预发布标签」时才放行预发布版这一规则，导致用户安装时遇到静默排除引发 ERESOLVE |
 | 1.0.2 | **宿主半侧按职责拆分为独立模块**（`lib/index.js` 从 1100+ 行降到 347 行；行为不变、110 条断言全通过）：`lib/store.js`（数据层：原子写 / 归一化 / 合并 / 记分）、`lib/skillpath.js`（skill 名 ↔ 实际路径双向解析 + 懒构建 TTL 索引）、`lib/titles.js`（四级取会话标题 + 限并发 + 落盘缓存 + 预热）从入口拆出；入口只保留 `apply` 接线与注入。拆分后每个模块单一职责、均不反向依赖 `index.js`，README 结构表同步 |
 | 1.0.1 | 重建历史为单提交：记分板插件全量审计 + 代码质量重构（行为不变）。**文案 i18n 化**（zh.json / en.json 两份 JSON 由 `lib/i18n/` 提供，客户端 `require` 读取，不再硬编码中文串）；**零依赖**（package.json 仅保留宿主提供的 schemastery / dsh-llm 作为 peer，移除 node_modules 实体，安装不留依赖树）；**结构拆分**（`lib/routes.js` HTTP 路由、`lib/util.js` 通用小工具从 `lib/index.js` 拆出）；改名去模糊（`data`→`payload`/`store`、`tmp`→`tmpFile`、`obj`→`parsed`/`cacheMap`）、重复字面量与超时/排序魔数提取为具名常量、空 `catch` 全部补说明注释；审计 **0 blocker / 0 warning 拦截项，91 分 A**（可读性 6 / 可维护性 12，其余八维满分）；新增 .test 测试豁免；README 措辞清理 |
 | 1.8.4 | **测试归位 test/ 目录 + 审计跳过**：单测文件移入 `test/`（相对引用同步改为 `../lib/`），test 目录放 `.test` 空文件标记——内置 code_audit 扫描自动跳过该目录（`test/**` 的重复字面量/魔数等噪音不再计入评分，扫描 finding 从 272 降到 197）；README 测试路径同步更新 |
