@@ -48,6 +48,11 @@ agent/pre-step（每个 agent 首次 step）
 | 路径 | 作用 |
 |---|---|
 | `lib/index.js` | 插件入口：`apply` 监听 `tools/result`，同时记 `count`（会话去重）、`loads`（每次加载）与 `sessions` 会话表；注册 `GET /api/skill-scoreboard`（含会话榜）与 export/import；`agent/pre-step` 注入记分榜 + skill 实际路径 |
+| `lib/store.js` | 宿主半侧 · 数据层（1.0.2 从 `index.js` 拆出）：读 `saveData`（临时文件 + rename 原子写）/ 归一化 `normalizeScoreboardPayload` / 合并 `mergeScoreboard` / 记分 `recordSkillUse`·`recordSessionUse` |
+| `lib/skillpath.js` | 宿主半侧 · 路径解析（1.0.2 拆出）：「skill 名 ↔ 实际文件路径」双向解析——`resolveSkillPath`（先问 skills 服务、失败扫文件系统兜底）与 `makeSkillPathIndex`（懒构建 + TTL 的路径索引，供 `read` 工具直接读 skill 文件记分） |
+| `lib/titles.js` | 宿主半侧 · 会话标题（1.0.2 拆出）：四级取标题（活跃会话快照 → 折叠日志 `session/title` 事件 → cwd 目录名 → 短 id 兜底），限并发 + 落盘缓存 `session-titles.json` + `warm` 预热 |
+| `lib/routes.js` | 宿主半侧 · HTTP 路由（1.0.1 拆出）：`GET /api/skill-scoreboard` 与 export/import 端点 |
+| `lib/util.js` | 通用小工具（1.0.1 拆出）：`createSemaphore` / `shortIdOf` / `errMsg` 等零依赖助手 |
 | `lib/client.js` | 浏览器半侧：注册 `settings.section` 侧边栏「Skill 记分板」+ 三选项卡页面（Skill 排行 / 会话榜 / 管理），排行分页、会话标题解析与打开会话、导入导出，中英双语 |
 | `cordis.patch.yml` | bundle patch：insert `id: skill-scoreboard` |
 | `skills/dsh-skill-scoreboard.md` | 插件手册 skill |
@@ -201,6 +206,7 @@ PY
 
 | 版本 | 内容 |
 |------|------|
+| 1.0.2 | **宿主半侧按职责拆分为独立模块**（`lib/index.js` 从 1100+ 行降到 347 行；行为不变、110 条断言全通过）：`lib/store.js`（数据层：原子写 / 归一化 / 合并 / 记分）、`lib/skillpath.js`（skill 名 ↔ 实际路径双向解析 + 懒构建 TTL 索引）、`lib/titles.js`（四级取会话标题 + 限并发 + 落盘缓存 + 预热）从入口拆出；入口只保留 `apply` 接线与注入。拆分后每个模块单一职责、均不反向依赖 `index.js`，README 结构表同步 |
 | 1.0.1 | 重建历史为单提交：记分板插件全量审计 + 代码质量重构（行为不变）。**文案 i18n 化**（zh.json / en.json 两份 JSON 由 `lib/i18n/` 提供，客户端 `require` 读取，不再硬编码中文串）；**零依赖**（package.json 仅保留宿主提供的 schemastery / dsh-llm 作为 peer，移除 node_modules 实体，安装不留依赖树）；**结构拆分**（`lib/routes.js` HTTP 路由、`lib/util.js` 通用小工具从 `lib/index.js` 拆出）；改名去模糊（`data`→`payload`/`store`、`tmp`→`tmpFile`、`obj`→`parsed`/`cacheMap`）、重复字面量与超时/排序魔数提取为具名常量、空 `catch` 全部补说明注释；审计 **0 blocker / 0 warning 拦截项，91 分 A**（可读性 6 / 可维护性 12，其余八维满分）；新增 .test 测试豁免；README 措辞清理 |
 | 1.8.4 | **测试归位 test/ 目录 + 审计跳过**：单测文件移入 `test/`（相对引用同步改为 `../lib/`），test 目录放 `.test` 空文件标记——内置 code_audit 扫描自动跳过该目录（`test/**` 的重复字面量/魔数等噪音不再计入评分，扫描 finding 从 272 降到 197）；README 测试路径同步更新 |
 | 1.8.3 | **代码质量重构（行为不变）**：按 code_audit 全量扫描结论拆分长函数与高圈复杂度函数——`normalizeScoreboardPayload`（复杂度 12）与 `mergeScoreboard`（12）拆为子表函数（`normalizeSkillsTable` / `normalizeSessionsTable` / `mergeSkillTables` / `mergeSessionTables`），`makeTitleResolver`（41→31）拆出 `titleFromSessionSnapshot` / `titleFromInspect` / `cachedTitle`，`ScoreboardPage`（18→11）拆出 `snapshotToState` / `badgeFor` / `panelHeadRow` / `panelBody`；提取重复字面量为帮助函数 `isPlainObject` / `num0` / `emptyV2` / `errMsg`；全部 110 条断言（test-scoreboard 80 + test-client 30）通过，安全性/性能/测试覆盖三维保持满分 |
