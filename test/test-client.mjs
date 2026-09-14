@@ -62,9 +62,17 @@ const API = {
     loadsEstimated: i === 0,
   })),
 }
-globalThis.fetch = () => Promise.resolve({ ok: true, status: 200, json: async () => API })
+// 2026-09-14 方案A：假 fetch 按 URL 分流 —— i18n 端点回真实外置字典，其余回记分快照。
+const ZH = JSON.parse(readFileSync(join(__dirname, '..', 'lib', 'i18n', 'zh.json'), 'utf8'))
+const EN = JSON.parse(readFileSync(join(__dirname, '..', 'lib', 'i18n', 'en.json'), 'utf8'))
+globalThis.fetch = (url) => {
+  if (String(url || '').includes('/api/skill-scoreboard/i18n')) {
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true, zh: ZH, en: EN }) })
+  }
+  return Promise.resolve({ ok: true, status: 200, json: async () => API })
+}
 
-// 2026-09-13：client.js 含 require（i18n JSON），Node 无法直接 import（CJS/ESM 冲突），
+// client.js 经 ModuleLoader 执行，Node 无法直接 import（CJS/ESM 冲突）；
 // 改为读源码 + Function 执行（window.__ModuleLoader__ 已挂全局，require 经 Module.prototype.require 拦截）。
 const bootstrapSrc = readFileSync(join(__dirname, '..', 'lib', 'client.js'), 'utf8')
 Function(bootstrapSrc)()
