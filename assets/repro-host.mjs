@@ -12,8 +12,11 @@
  * 用法：node assets/repro-host.mjs
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const WS = '/volume1/@appdata/DeepSeekHarness-NAS/0.1.6-alpha.1/工作区/dsh-skill-scoreboard';
+// 仓库根 = 本文件所在目录的上一级（换机/换工作区即用；原先写死本机绝对路径）
+const WS = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientSrc = readFileSync(`${WS}/lib/client.js`, 'utf8');
 const reactUmd = readFileSync(process.env.REACT_UMD || '/tmp/react_umd.js', 'utf8');
 const domUmd = readFileSync(process.env.REACTDOM_UMD || '/tmp/reactdom_umd.js', 'utf8');
@@ -31,24 +34,27 @@ const SKILLS = [
   ['i18n-external-dict', 2, 2], ['error-boundary', 2, 2], ['css-inject-once', 1, 1],
   ['path-index-ttl', 1, 1],
 ];
+// 演示用假数据：id 存裸串，前缀在下方 map 里拼接（与 preview-gen.mjs 同形）。
+//   会话标题刻意用中性词，不引用任何真实会话记录。
 const SESSIONS = [
-  ['session-9c954608', 12, 9, '跨会话迁移工具修复'],
-  ['session-cac511b6', 9, 7, 'skill 记分板渲染排查'],
-  ['session-4f21ab03', 7, 6, 'git-push 插件审计'],
-  ['session-77ce9012', 5, 5, '发布流程整理'],
-  ['session-1a2b3c4d', 3, 3, 'README 模板调整'],
+  ['00000001', 12, 9, '文档整理'],
+  ['00000002', 9, 7, '界面渲染排查'],
+  ['00000003', 7, 6, '插件审计'],
+  ['00000004', 5, 5, '发布流程'],
+  ['00000005', 3, 3, '模板调整'],
 ];
 const TOTAL = SKILLS.reduce((n, [, c]) => n + c, 0);
 const TOTAL_LOADS = SKILLS.reduce((n, [, , l]) => n + l, 0);
 const FAKE = {
   ok: true, total: TOTAL, totalLoads: TOTAL_LOADS, recorded: SKILLS.length,
   updatedAt: '2026-09-18T12:00:00.000Z',
-  dataFile: '/volume1/@appdata/DeepSeekHarness-NAS/0.1.6-alpha.1/.dsh/skill-scoreboard/skill-usage.json',
+  // 展示用假字段：模拟真实接口回传的数据文件路径（不参与读取，故用占位形态而非本机绝对路径）
+  dataFile: '<DSH_HOME>/.dsh/skill-scoreboard/skill-usage.json',
   skills: SKILLS.map(([name, count, loads], i) => ({
     name, count, loads, lastUsedAt: `2026-09-${String(18 - (i % 9)).padStart(2, '0')}T10:00:00.000Z`,
   })),
   sessions: SESSIONS.map(([id, loads, distinct, title]) => ({
-    id, loads, distinct, skills: SKILLS.slice(0, distinct).map(([n]) => n),
+    id: 'session-' + id, loads, distinct, skills: SKILLS.slice(0, distinct).map(([n]) => n),
     firstUsedAt: '2026-09-10T00:00:00.000Z', lastUsedAt: '2026-09-18T00:00:00.000Z',
     loadsEstimated: false, title,
   })),
