@@ -19,3 +19,6 @@ node_modules.orig/
 
 # 第三方插件安装临时产物（.dsh/nginx 等无关目录，不入库，2026-09-14）
 _install_dcb/
+
+# .git 修复过程中的临时备份（不入库，2026-09-18）
+.git.stub-backup/
