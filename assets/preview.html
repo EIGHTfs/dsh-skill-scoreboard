@@ -33425,10 +33425,16 @@ window.__sessionsMock = {
   open: function (id) { window.__OPENED__ = id; return true; },
 };
 
-// 宿主 slots：settings.section 列表槽，register 收到渲染函数
+// 宿主 slots：settings.section 列表槽。
+// 关键：真实宿主把 register 的第二参当 **React 组件**交给 reconciler 渲染，
+// 而不是当普通函数直接调用——本垫片必须照此模拟，否则组件在 effect 里引用
+// 不到的标识符（如曾经的 subscribeDict）不会暴露，预览页会「看起来正常」。
 window.__slotsMock = {
   inject: function (name, fn) { window.__INJECTED_NAME__ = name; fn(); },
-  register: function (spec, render) { window.__PAGE_RENDER__ = render; return spec; },
+  register: function (spec, component) {
+    if (spec && spec.id === 'skill-scoreboard') window.__PAGE_COMPONENT__ = component;
+    return spec;
+  },
 };
 
 window.__ctxMock = {
@@ -34357,18 +34363,43 @@ try {
   var mod = window.__CAPTURED__.factory(window.__requireShim);
   window.__CAPTURED__ = null;
   mod.apply(window.__ctxMock);
-  if (!window.__PAGE_RENDER__) throw new Error('settings.section 未注册渲染函数');
+  var Page = window.__PAGE_COMPONENT__;
+  if (!Page) throw new Error('settings.section 未注册渲染组件');
+  // 错误边界必须是 **类组件**（componentDidCatch / getDerivedStateFromError）——
+  // 函数组件里的 try/catch 只能拦住自身返回表达式，拦不住子组件的 effect 抛错，
+  // 而「有入口、点进去空白」正是 effect 抛错后 React 卸载整棵树造成的。
+  function Boundary() { React.Component.call(this); this.state = { err: null }; }
+  Boundary.prototype = Object.create(React.Component.prototype);
+  Boundary.prototype.constructor = Boundary;
+  Boundary.getDerivedStateFromError = function (e) { return { err: e }; };
+  Boundary.prototype.componentDidCatch = function (e) {
+    __err('render(componentDidCatch)', (e && e.stack) || e.message);
+  };
+  Boundary.prototype.componentDidMount = function () { window.__MOUNTED__ = true; };
+  Boundary.prototype.render = function () {
+    if (this.state.err) {
+      return React.createElement('div', { style: { color: '#f87171' } },
+        '渲染失败：' + this.state.err.message);
+    }
+    return React.createElement(Page, null);
+  };
   ReactDOM.flushSync(function () {
     ReactDOM.createRoot(document.getElementById('root')).render(
-      React.createElement(function () {
-        var el = window.__PAGE_RENDER__();
-        return el || React.createElement('div', null, '（无内容）');
-      }, null)
+      React.createElement(Boundary, null)
     );
   });
-  window.__ready = true;
+  // effect 是异步提交的：稍后检查容器是否真的产出了内容
+  setTimeout(function () {
+    var host = document.getElementById('root');
+    var txt = (host && host.textContent) || '';
+    if (txt.replace(/\s/g, '') === '') {
+      __err('mount', '渲染后容器为空或仅占位（组件未产出内容；多为 effect 内抛错导致整棵树被卸载）');
+    } else {
+      window.__ready = true;
+    }
+  }, 400);
 } catch (e) {
-  __err('harness', (e && e.message) || String(e));
+  __err('harness', (e && e.stack) || String(e));
 }
 </script>
 </body></html>
