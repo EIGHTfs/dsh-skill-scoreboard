@@ -15,12 +15,68 @@
  *
  * 用法：node assets/preview-gen.mjs
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DSH = '/vol2/1000/DeepSeek Harness/dsh-v0.1.2-alpha.4';
-const P = `${DSH}/.dsh-home/工作区/dsh-skill-scoreboard`;
-const R = `${DSH}/node_modules/.pnpm/react@18.3.1/node_modules/react`;
-const RD = `${DSH}/node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom`;
+// 项目根 = 本文件所在目录的上一级（换机/换工作区即用，不写死本机路径）
+const P = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * 定位 DSH 安装根（2026-09-18：原先写死一个本机私有绝对路径，别人 clone 后必然跑不起来）。
+ *
+ * 为什么不能只靠相对推导：DSH 的**数据目录与安装目录可能不同源**——例如数据在
+ *   `<X>/@appdata/.../.dsh`、程序装在 `<X>/@appstore/DeepSeekHarness-NAS`，
+ *   两者不在同一棵树下，从任一工作区上溯任意级都到不了。故支持显式指定。
+ *
+ * 顺序：DSH_ROOT 环境变量 → DSH_HOME 的上级链 → 从项目根上溯。
+ * 判据：安装根的标志是「同时存在 node_modules/ 与 package.json」。
+ * 找不到时由下方给出可操作的报错（而非抛 ENOENT 裸路径）。
+ */
+function findDshRoot() {
+  if (process.env.DSH_ROOT) return process.env.DSH_ROOT;
+  const isRoot = (d) => d && existsSync(join(d, 'package.json')) && existsSync(join(d, 'node_modules'));
+  const home = process.env.DSH_HOME;
+  if (home) {
+    for (const c of [home, resolve(home, '..'), resolve(home, '..', '..')]) {
+      if (isRoot(c)) return c;
+    }
+  }
+  let cur = P;
+  for (let i = 0; i < 8; i++) {
+    const up = resolve(cur, '..');
+    if (up === cur) break;
+    cur = up;
+    if (isRoot(cur)) return cur;
+  }
+  return '';
+}
+
+const DSH = findDshRoot();
+// React UMD：从 DSH 的 pnpm store 取（DSH 未安装 react-dom 时可用 REACT_UMD_DIR / REACT_DOM_UMD_DIR 覆盖）
+const store = DSH ? join(DSH, 'node_modules', '.pnpm') : '';
+const R = process.env.REACT_UMD_DIR || (store ? join(store, 'react@18.3.1', 'node_modules', 'react') : '');
+const RD = process.env.REACT_DOM_UMD_DIR
+  || (store ? join(store, 'react-dom@18.3.1_react@18.3.1', 'node_modules', 'react-dom') : '');
+
+// 依赖就位检查：给出可操作的提示，而不是让 readFileSync 抛裸 ENOENT 路径
+for (const [label, file] of [
+  ['React UMD', R ? `${R}/umd/react.development.js` : ''],
+  ['ReactDOM UMD', RD ? `${RD}/umd/react-dom.development.js` : ''],
+]) {
+  if (!file || !existsSync(file)) {
+    console.error(
+      `找不到 ${label}。\n`
+      + `  DSH 安装根推导为：${DSH || '(未找到)'}\n`
+      + `  react-dom 常未随 DSH 安装；UMD 为单文件自包含，可直接下载后指向其父目录：\n`
+      + `    mkdir -p /tmp/rd/umd && curl -sSL -o /tmp/rd/umd/react-dom.development.js \\\n`
+      + `      https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js\n`
+      + `    REACT_DOM_UMD_DIR=/tmp/rd node assets/preview-gen.mjs\n`
+      + `  或用 DSH_ROOT / REACT_UMD_DIR / REACT_DOM_UMD_DIR 显式指定。`,
+    );
+    process.exit(1);
+  }
+}
 
 const clientSrc = readFileSync(`${P}/lib/client.js`, 'utf8');
 const reactUmd = readFileSync(`${R}/umd/react.development.js`, 'utf8');

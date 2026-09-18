@@ -33491,11 +33491,24 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
 const React = require('react')
 ReactRef = React
 const name = 'dsh-skill-scoreboard'
-// 2026-09-13：i18n 字典迁至 JSON 文件，用宿主 require 读取（Node 原生支持 JSON require）
+// 2026-09-13 修复：DSH 浏览器端 ModuleLoader 的宿主 require 只认模块表词（seed/已注册工厂），
+// 不支持相对路径 JSON —— `./i18n/*.json` 会抛 missed-the-module-table。
+// 2026-09-14（方案A）解耦：字典不再整份内嵌，由 host 侧把外置 lib/i18n/*.json 经 GET /api/skill-scoreboard/i18n
+// 暴露、客户端 apply 后 fetch 拉取合并（改 dict 无需重打包 client bundle）。此处仅保留侧边栏导航标签所需的
+// 极少量同步兜底字段，fetch 失败/未完成时导航不入键名。
 L = {
-  zh: require('./i18n/zh.json'),
-  en: require('./i18n/en.json'),
+  zh: {
+    'settings.title': "Skill 记分板",
+    'settings.desc': "AI 会话中 skill 工具的使用次数自动统计。",
+  },
+  en: {
+    'settings.title': "Skill scoreboard",
+    'settings.desc': "Automatic skill usage counts.",
+  },
 }
+
+// 外置 i18n 字典的订阅与拉取（dictListeners / subscribeDict / loadDict）定义在顶层作用域，
+// 因为消费它们的 ScoreboardPage 等组件也在顶层——放进本 factory 内部会导致组件侧 ReferenceError。
 
 
 // ── 插件装配：设置侧边栏导航条目（settings.section 列表槽） ─────────────
@@ -33517,6 +33530,8 @@ function apply(ctx) {
     ))
   }
   ctx.effect(() => disposeDict, 'dsh-skill-scoreboard: dictionaries')
+  // 外置 i18n 字典：插件激活即开始拉取（fire-and-forget，失败静默保留同步兜底）。
+  loadDict()
 }
 
 exports.NS = ui.NS
@@ -33535,10 +33550,39 @@ return module.exports
  * @returns { page: 页面组件, ensureCss, tr, fmtTime, shortSessionId, pageSequence, Pager, setLocale, setSessions }
  */
 // ── i18n：zh/en 同键字典；tr 读当前 locale，缺词回退 en → 键名 ──────────
-// 字典存 lib/i18n/*.json（2026-09-13 从内嵌硬编码迁出，消除重复字面量误报）；
-// 读取放在 createModule 内用宿主 require（Node require 原生支持 JSON）。
+// 2026-09-14（方案A）字典改为外置：host 侧暴露 /api/skill-scoreboard/i18n，client apply 后由 loadDict
+// fetch 拉取合并进 L（源码仅保留导航所需 title/desc 同步兜底）。DSH 浏览器 require 不支持相对路径 JSON，
+// 故不落地为内嵌对象字面量、也不经 require 加载。
 const NS = 'dsh-skill-scoreboard'
-let L = null // createModule 时经 setDict 注入
+let L = null // createModule 时注入同步兜底字典；loadDict 拉取外置 json 后合并扩充
+
+// ── 外置 i18n 字典：订阅 + 拉取（方案A，2026-09-14） ──────────────────────
+// 根因见 DSH 宿主 packages/client/modules/src/client/system.ts makeRequire：浏览器 require 只认 seed 词、
+// 已注册 factory、已实例化模块，不做相对路径解析；故字典改走 host 暴露的 HTTP 接口拉取。
+// 注意：dictListeners / subscribeDict / loadDict 必须留在顶层——ScoreboardPage、apply 等
+// 顶层函数都要引用它们；若放回 createModule 内部，组件在 useEffect 里调用会抛 ReferenceError，
+// React 随即卸载整棵树，表现为「设置里有入口但点进去空白」（2026-09-18 修复）。
+const dictListeners = new Set()
+
+/** 订阅字典拉取完成事件；返回退订函数（组件 effect 用）。 */
+function subscribeDict(fn) { dictListeners.add(fn); return () => dictListeners.delete(fn) }
+
+/** 拉取外置字典并合并进 L（同引用，页面与导航 label 一并更新）；失败保留同步兜底。 */
+async function loadDict() {
+  try {
+    const res = await fetch('/api/skill-scoreboard/i18n', {
+      credentials: 'same-origin',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    })
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const body = await res.json()
+    if (body && body.zh && typeof body.zh === 'object' && body.en && typeof body.en === 'object') {
+      L.zh = { ...L.zh, ...body.zh }
+      L.en = { ...L.en, ...body.en }
+    }
+  } catch { /* fetch 失败/格式异常：保留同步兜底，不影响页面可用 */ }
+  for (const fn of dictListeners) { try { fn() } catch { /* 单个监听失败不阻断 */ } }
+}
 
 // 组件级 CSS：设置页全局注入一次，主题走 DSH 设计 token（明暗自适应）
 // 选项卡 / 分页样式对齐插件市场（.tabs/.tab/.on/.pager）
@@ -33896,6 +33940,9 @@ skills: [], sessions: [], total: 0, totalLoads: 0, recorded: 0, updatedAt: null,
 if (!localeCtx || typeof localeCtx.subscribe !== 'function') return
 return localeCtx.subscribe(() => setLocaleTick((t) => t + 1))
   }, [])
+
+  // 外置 i18n 字典异步到达后重渲染（页面正文文案此时才完整）。
+  ReactRef.useEffect(() => subscribeDict(() => setLocaleTick((t) => t + 1)), [])
 
   const load = useSnapshotLoader(setState)
 
