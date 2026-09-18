@@ -205,6 +205,12 @@ window.fetch = function (url, init) {
   var json = function (body) {
     return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(body); } });
   };
+  // 顺序要紧：/api/skill-scoreboard/i18n 同样包含 '/api/skill-scoreboard' 前缀，
+  // 若把通用快照分支放在前面，字典请求会拿到记分快照而不是字典，
+  // 于是 L 只剩导航兜底的两个 key，界面到处显示原始的 settings.xxx。
+  if (u.indexOf('/api/skill-scoreboard/i18n') >= 0) {
+    return json({ ok: true, zh: ${zhDict}, en: ${enDict} });
+  }
   if (u.indexOf('/api/skill-scoreboard/export') >= 0) {
     return Promise.resolve({ ok: true, status: 200, blob: function () { return Promise.resolve(new Blob([JSON.stringify(window.__FAKE__, null, 1)], { type: 'application/json' })); } });
   }
