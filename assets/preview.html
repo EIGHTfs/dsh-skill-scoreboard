@@ -33584,6 +33584,15 @@ window.fetch = function (url, init) {
 //   管理：导出 / 导入（合并、覆盖）+ 数据概览（skill 数、会话数、累计次数、数据文件路径）
 // 数据来自宿主端只读接口 GET /api/skill-scoreboard（lib/index.js 注册）。
 //
+// ── 整体 IIFE 包裹（2026-09-19） ─────────────────────────────────────────
+// 手写插件的 client.js 自带自注册 load 调用时，client-modules 聚合会「原样拼接整个文件」，
+// 顶层 let/const/function 因此全部落进聚合文件的同一个顶层作用域。本文件顶层有 55 个声明，
+// 与同聚合的 dsh-session-migrate 有 10 个重名（createModule / tr / ensureCss / cssText /
+// dictListeners / subscribeDict / localeCtx / activeLocaleId / FETCH_TIMEOUT_MS /
+// SETTINGS_SECTION_ORDER）——顶层 let 重名是**解析期 SyntaxError**，会让整个聚合脚本失效，
+// 浏览器表现为「Failed to load plugins」。包一层 IIFE 后顶层只剩一个表达式，所有声明进函数
+// 作用域，与官方插件的 factory 闭包效果一致，且一个名字都不用改（默认采用此写法）。
+(() => {
 // Client entries must be classic scripts registered via window.__ModuleLoader__.load
 // ({ id, factory }); the factory receives a synchronous `require`.
 window.__ModuleLoader__.load({
@@ -34469,7 +34478,9 @@ function createScoreboardUi() {
   setLocale: (ctx) => { localeCtx = ctx },
   setSessions: (svc) => { sessionsSvc = svc },
     }
-}</script>
+}
+})();
+</script>
 <script>
 try {
   var mod = window.__CAPTURED__.factory(window.__requireShim);
