@@ -37,8 +37,10 @@ export const PART_ORDER = [
   '00-entry.js',   // 文件头 + 顶层 IIFE + createModule(require) + ReactRef/NS/name
   '01-apply.js',   // apply(ctx)：settings.section 注册
   '02-i18n.js',    // i18n：字典 + 订阅 + 拉取（方案A 外置字典）
-  '03-styles.js',  // 组件级 CSS 注入 + locale/tr/fmtTime
-  '04-utils.js',   // 通用小工具（纯函数）+ 翻页控件（pageSequence/Pager）
+  'ui/styles.js',  // ★通用模块：组件级 CSS（cssText + ensureCss）
+  'foundation/i18n-runtime.js', // locale 取用 + tr + fmtTime
+  '04-utils.js',   // 会话标题/短 id/打开会话等纯函数
+  'ui/pager.js',   // ★通用模块：翻页控件（PAGE_WINDOW_MAX + pageSequence + Pager）
   '05-page.js',    // 记分板页面（三选项卡 + TabBar + 面板装配）
   '06-loader.js',  // useSnapshotLoader（数据加载/轮询）+ 导入导出 + 概览卡片
   '07-export.js',  // createScoreboardUi()：对外聚合导出（尾片）
