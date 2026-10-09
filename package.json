@@ -50,8 +50,8 @@
     "node": ">=18"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/schemastery": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0"
+    "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/schemastery": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0"
   },
   "author": "EIGHTfs",
   "homepage": "https://github.com/EIGHTfs/dsh-skill-scoreboard#readme"
