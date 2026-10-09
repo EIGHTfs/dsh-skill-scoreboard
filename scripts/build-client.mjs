@@ -37,12 +37,17 @@ export const PART_ORDER = [
   '00-entry.js',   // 文件头 + 顶层 IIFE + createModule(require) + ReactRef/NS/name
   '01-apply.js',   // apply(ctx)：settings.section 注册
   '02-i18n.js',    // i18n：字典 + 订阅 + 拉取（方案A 外置字典）
-  'ui/styles.js',  // ★通用模块：组件级 CSS（cssText + ensureCss）
+  'ui/styles.js',  // ★通用模块 1：组件级 CSS（cssText + ensureCss）
   'foundation/i18n-runtime.js', // locale 取用 + tr + fmtTime
   '04-utils.js',   // 会话标题/短 id/打开会话等纯函数
-  'ui/pager.js',   // ★通用模块：翻页控件（PAGE_WINDOW_MAX + pageSequence + Pager）
-  '05-page.js',    // 记分板页面（三选项卡 + TabBar + 面板装配）
-  '06-loader.js',  // useSnapshotLoader（数据加载/轮询）+ 导入导出 + 概览卡片
+  'ui/pager.js',   // ★通用模块 2：翻页控件（PAGE_WINDOW_MAX + pageSequence + Pager）
+  '05-page-1.js',  // 排序/分页/状态装配工具
+  'ui/tabs.js',    // ★通用模块 3：TabBar
+  '05-page-2.js',  // snapshotToState / badgeFor / toggleInSet / buildPageView / pickPanel
+  'ui/table.js',   // ★通用模块 4：面板表头 + 表体
+  '05-page-3.js',  // ScoreboardPage + pageHero + 面板装配
+  'ui/fetcher.js', // ★通用模块 5：useSnapshotLoader（数据加载/轮询）
+  '06-loader-2.js',// 导出/导入 + 概览卡片
   '07-export.js',  // createScoreboardUi()：对外聚合导出（尾片）
 ];
 
