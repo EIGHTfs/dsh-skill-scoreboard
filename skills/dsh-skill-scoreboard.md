@@ -7,6 +7,8 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 
 # skill 使用记分板（dsh-skill-scoreboard 插件）
 
+> 插件版本：**1.1.0** —— 与 `package.json` 的 `version`、README「版本列表」保持一致（升版本时三处同步）。
+
 > 记分板由手动 `skill-scoreboard.md` 升级为**插件代码级自动记录**；页面为**三选项卡**（Skill 排行 / 会话榜 / 管理），Skill 排行固定按**会话去重降序**。
 
 > 核心一句话：**模型每实际加载一个 skill，插件自动记一笔**——无需 AI 手动维护。
