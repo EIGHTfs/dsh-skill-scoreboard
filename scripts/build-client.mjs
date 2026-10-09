@@ -47,7 +47,9 @@ export const PART_ORDER = [
   '05-page-2.js',  // snapshotToState / badgeFor / toggleInSet / buildPageView / pickPanel
   'ui/table.js',   // ★通用模块 4：面板表头 + 表体
   '05-page-3.js',  // ScoreboardPage + pageHero + 面板装配
-  'ui/fetcher.js', // ★通用模块 5：useSnapshotLoader（数据加载/轮询）
+  'ui/fetcher.js', // ★通用模块 5：useSnapshotLoader（数据加载/轮询）+ 取数助手
+  'app/panel-skill.js',   // 技能排行面板（页面层，含 JSDoc）
+  'app/panel-session.js', // 会话榜面板（页面层，含 JSDoc）
   '06-loader-2.js',// 导出/导入 + 概览卡片
   '07-export.js',  // createScoreboardUi()：对外聚合导出（尾片）
 ];
