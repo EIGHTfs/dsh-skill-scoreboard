@@ -35,7 +35,8 @@ export const OUT_FILE = join(ROOT, 'lib', 'client.js');
  */
 export const PART_ORDER = [
   '00-entry.js',   // 文件头 + 顶层 IIFE + createModule(require) + ReactRef/NS/name
-  '01-apply.js',   // apply(ctx)：settings.section 注册
+  'ui/mount.js',   // ★通用模块 6：设置侧边栏独立页注册（settings.section）
+  '01-apply.js',   // apply(ctx)：装配（调用 ui/mount.js + 注册字典 + 触发拉取）
   '02-i18n.js',    // i18n：字典 + 订阅 + 拉取（方案A 外置字典）
   'ui/styles.js',  // ★通用模块 1：组件级 CSS（cssText + ensureCss）
   'foundation/i18n-runtime.js', // locale 取用 + tr + fmtTime
