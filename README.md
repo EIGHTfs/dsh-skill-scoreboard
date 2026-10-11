@@ -85,6 +85,37 @@ agent/pre-step（每个 agent 首次 step）
 | `package.json` | 包名 / 版本 / `dsh.bundle.patch` / `dsh.skills` / `dsh.client` / `files`+`repository` 等 npm 发布元数据 |
 | `.npmignore` | npm pack 排除规则：`*.bak` / `.trash/` / 锁文件（`npm pack --dry-run` 验证 6 文件入库） |
 
+## 安装
+
+装到哪个 profile 由 `--profile` 决定。**从 GitHub 源安装**（公开仓库，匿名可装）：
+
+⚠️ `dsh plugin --profile <名> add …` 当前实测**会挂死且零输出**（两次都以 timeout 结束、日志为空）⇒
+改在**该 profile 目录里直跑 pnpm**（`dsh plugin` 的设计就是把参数转发给 profile 的 pnpm，两者本应等价）：
+
+```bash
+cd <DSH_HOME>/profiles/<profile>
+pnpm add github:EIGHTfs/dsh-skill-scoreboard#<commit>     # 用 commit 固定版本（远端暂无 tag）
+```
+
+**两条前置条件（缺一即失败；本插件有 `prepare`/`prepack`，两条都需要）**：
+
+1. **本机要有 `npm`** —— pnpm 构建 git 来源的包时会在临时目录执行 `npm install`；
+   缺 npm 时报 `ERR_PNPM_PREPARE_PACKAGE` + `spawn ENOENT: npm: command not found`。
+2. **pnpm 11 默认禁止 git 源依赖执行构建脚本**（供应链策略）⇒ 先在 profile 的
+   `pnpm-workspace.yaml` 里放行，否则报 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`：
+
+   ```yaml
+   allowBuilds:
+     dsh-skill-scoreboard@https://codeload.github.com/EIGHTfs/dsh-skill-scoreboard/tar.gz/<commit>: true
+   ```
+
+   ⚠️ key 里带 commit 哈希 ⇒ 换版本/换提交要同步改这一行。
+
+装完三步：profile `package.json` 的 `dsh.profile.bundles` 登记插件名 → 本插件 `cordis.patch.yml`
+顶层 `- insert:` 新建 loader 行 → 重启宿主并在日志确认 `loaded`。
+
+本地源码安装（`file:` 依赖 + 手工三步曲）见下一节。
+
 ## 启动脚本
 
 本插件随 DSH web profile 装载，没有独立进程，也没有 `start.sh`。

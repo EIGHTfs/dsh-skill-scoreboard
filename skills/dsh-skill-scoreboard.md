@@ -77,6 +77,35 @@ generatedBy: EIGHTfs 2026-09-02（由手动 skill-scoreboard.md 记分板升级�
 - `skill-cite-sources`：固化 skill 必说依据来源
 - `any-md-is-skill`：md 即 skill 的通用规则
 
+## 安装（从 GitHub 源）
+
+⚠️ `dsh plugin --profile <名> add …` 当前实测**会挂死且零输出**（两次都以 timeout 结束、日志为空）⇒
+改在**该 profile 目录里直跑 pnpm**（`dsh plugin` 的设计就是把参数转发给 profile 的 pnpm，两者本应等价）：
+
+```bash
+cd <DSH_HOME>/profiles/<profile>
+pnpm add github:EIGHTfs/dsh-skill-scoreboard#<commit>     # 用 commit 固定版本（远端暂无 tag）
+```
+
+**两条前置条件（缺一即失败；本插件有 `prepare`/`prepack`，两条都要）**：
+
+1. **本机要有 `npm`** —— pnpm 构建 git 来源的包时会在临时目录执行 `npm install`；缺 npm 报
+   `ERR_PNPM_PREPARE_PACKAGE` + `spawn ENOENT: npm: command not found`。
+   （本机 2026-10-12 已装 npm 10.9.2：解包到 `<APP>/lib/node_modules/npm`，链到
+   `/var/packages/DeepSeekHarness-NAS/target/.local/bin/npm` —— `/usr/local/bin` 不可写。）
+2. **pnpm 11 默认禁止 git 源依赖执行构建脚本** ⇒ 先在 profile 的 `pnpm-workspace.yaml` 放行，
+   否则报 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`：
+
+   ```yaml
+   allowBuilds:
+     dsh-skill-scoreboard@https://codeload.github.com/EIGHTfs/dsh-skill-scoreboard/tar.gz/<commit>: true
+   ```
+
+   ⚠️ key 里带 commit 哈希 ⇒ 换版本/换提交要同步改这一行。
+
+装完三步：profile `package.json` 的 `dsh.profile.bundles` 登记 → 本插件 `cordis.patch.yml` 顶层
+`- insert:` 新建 loader 行 → 重启宿主并在日志确认 `loaded`。
+
 ## 七、开发注意（踩过的坑）
 
 - **顶层函数只能引用顶层常量**：`lib/client.js` 中 `createModule` 之外的顶层函数（如 `ensureCss`）不能引用 `createModule` 内的局部名（`name` / `ui` / `React`）。重构时 `ensureCss` 引用了 `name`——在浏览器里 `name` 会落到 `window.name`（空串，**不抛错**），所以 `data-plugin-css` 被写成空串，`querySelector` 去重永不命中，每次渲染都重复插入 `<style>`（修复：改用顶层常量 `NS`）；需要共享给顶层使用的 React 走模块级 `ReactRef`。
