@@ -25,3 +25,6 @@ _install_dcb/
 
 # 客户端构建产物（源码是分片 lib/client-parts/**，由 scripts/build-client.mjs 拼接生成；产物不入库）
 lib/client.js
+
+# 预览页生成产物（生成器是 assets/preview-gen.mjs，需要时跑一遍即可；产物约 1.2MB，不入库，2026-10-13）
+assets/preview.html
