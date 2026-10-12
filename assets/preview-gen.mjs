@@ -15,7 +15,7 @@
  *
  * 用法：node assets/preview-gen.mjs
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -53,11 +53,45 @@ function findDshRoot() {
 }
 
 const DSH = findDshRoot();
-// React UMD：从 DSH 的 pnpm store 取（DSH 未安装 react-dom 时可用 REACT_UMD_DIR / REACT_DOM_UMD_DIR 覆盖）
-const store = DSH ? join(DSH, 'node_modules', '.pnpm') : '';
-const R = process.env.REACT_UMD_DIR || (store ? join(store, 'react@18.3.1', 'node_modules', 'react') : '');
-const RD = process.env.REACT_DOM_UMD_DIR
-  || (store ? join(store, 'react-dom@18.3.1_react@18.3.1', 'node_modules', 'react-dom') : '');
+// React UMD 解析（2026-10-13 修）：原实现写死 `<store>/react@18.3.1`，且只看 DSH 安装根的 .pnpm——
+//   而本机 react 实际装在**数据目录的 profile** 里（<DSH_HOME>/profiles/<profile>/node_modules/react），
+//   安装根根本没有 react ⇒ 必然报「找不到 React UMD」(与 dsh-git-push 生成器同源 bug)。
+//   改为多候选 + 不写死版本 + 按**目标文件**校验（避免把 react-dom 的 umd 误当 react）；env 仍最高优先。
+function pickUmdDir(pkg) {
+  const envVar = pkg === 'react' ? 'REACT_UMD_DIR' : 'REACT_DOM_UMD_DIR';
+  const want = join('umd', pkg === 'react' ? 'react.development.js' : 'react-dom.development.js');
+  const has = (d) => Boolean(d) && existsSync(join(d, want));
+  if (process.env[envVar] && has(process.env[envVar])) return process.env[envVar];
+  const home = process.env.DSH_HOME || '';
+  const cands = [];
+  if (home) {
+    cands.push(join(home, 'cache', 'react-umd', pkg), join(home, 'cache', 'react-umd'));
+    if (process.env.DSH_PROFILE_DIR) cands.push(join(process.env.DSH_PROFILE_DIR, 'node_modules', pkg));
+    try {
+      for (const p of readdirSync(join(home, 'profiles'))) cands.push(join(home, 'profiles', p, 'node_modules', pkg));
+    } catch { /* 无 profiles 目录 */ }
+  }
+  const roots = [];
+  if (DSH) roots.push(join(DSH, 'node_modules'));
+  let cur = P;
+  for (let i = 0; i < 5; i++) {
+    roots.push(join(cur, 'node_modules'));
+    cur = resolve(cur, '..');
+  }
+  for (const root of roots) {
+    cands.push(join(root, pkg));
+    try {
+      const pnpm = join(root, '.pnpm');
+      for (const e of readdirSync(pnpm)) {
+        if (e === pkg || e.startsWith(`${pkg}@`)) cands.push(join(pnpm, e, 'node_modules', pkg));
+      }
+    } catch { /* 无 .pnpm 或不可读 */ }
+  }
+  for (const c of cands) if (has(c)) return c;
+  return process.env[envVar] || '';
+}
+const R = pickUmdDir('react');
+const RD = pickUmdDir('react-dom');
 
 // 依赖就位检查：给出可操作的提示，而不是让 readFileSync 抛裸 ENOENT 路径
 for (const [label, file] of [
