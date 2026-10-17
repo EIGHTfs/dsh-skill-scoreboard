@@ -34,25 +34,25 @@ export const OUT_FILE = join(ROOT, 'lib', 'client.js');
  * 新分片未登记进本表 ⇒ 构建直接报错（不静默丢失）。
  */
 export const PART_ORDER = [
-  '00-entry.js',   // 文件头 + 顶层 IIFE + createModule(require) + ReactRef/NS/name
+  'entry.js',      // 文件头 + 顶层 IIFE + createModule(require) + ReactRef/NS/name
   'ui/mount.js',   // ★通用模块 6：设置侧边栏独立页注册（settings.section）
-  '01-apply.js',   // apply(ctx)：装配（调用 ui/mount.js + 注册字典 + 触发拉取）
-  '02-i18n.js',    // i18n：字典 + 订阅 + 拉取（方案A 外置字典）
+  'apply.js',      // apply(ctx)：装配（调用 ui/mount.js + 注册字典 + 触发拉取）
+  'i18n.js',       // i18n：字典 + 订阅 + 拉取（方案A 外置字典）
   'app/styles-text.js', // 项目 CSS 文本（cssText，应用层）
   'ui/styles.js',  // ★通用模块 1：CSS 注入机制（ensureCss：按属性值去重注入一次 <style>）
   'foundation/i18n-runtime.js', // locale 取用 + tr + fmtTime
-  '04-utils.js',   // 会话标题/短 id/打开会话等纯函数
+  'utils.js',      // 会话标题/短 id/打开会话等纯函数
   'ui/pager.js',   // ★通用模块 2：翻页控件（PAGE_WINDOW_MAX + pageSequence + Pager）
-  '05-page-1.js',  // 排序/分页/状态装配工具
+  'page-sort.js',  // 排序/分页工具（sortSkillRows / sortSessionRows / paginate）
   'ui/tabs.js',    // ★通用模块 3：TabBar
-  '05-page-2.js',  // snapshotToState / badgeFor / toggleInSet / buildPageView / pickPanel
+  'page-view.js',  // 视图派生（snapshotToState / badgeFor）
   'ui/table.js',   // ★通用模块 4：面板表头 + 表体
-  '05-page-3.js',  // ScoreboardPage + pageHero + 面板装配
+  'page.js',       // ScoreboardPage + buildPageView / pickPanel / pageHero
   'ui/fetcher.js', // ★通用模块 5：useSnapshotLoader（数据加载/轮询）+ 取数助手
   'app/panel-skill.js',   // 技能排行面板（页面层，含 JSDoc）
   'app/panel-session.js', // 会话榜面板（页面层，含 JSDoc）
-  '06-loader-2.js',// 导出/导入 + 概览卡片
-  '07-export.js',  // createScoreboardUi()：对外聚合导出（尾片）
+  'io.js',         // 导出/导入 + 概览卡片
+  'export.js',     // createScoreboardUi()：对外聚合导出（尾片）
 ];
 
 /** 读出全部分片内容（缺片 / 未登记片直接报错，避免拼出半份产物当成功）。 */
