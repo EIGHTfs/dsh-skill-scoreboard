@@ -18,8 +18,10 @@ Skill 排行（按会话去重降序，去重与加载两种次数同列显示�
 
 ![管理](assets/panel-manage.png)
 
-> **界面模拟页**：`assets/preview.html`（单文件自包含，双击即可打开；跑的是真实 `lib/client.js` + 假数据，
-> 三选项卡、分页、会话展开、导入导出全部可点，改动只留在页面内）
+> **界面预览**：用 DSH 内置 `preview` 工具生成，仓库内不再维护生成器与产物——
+> `preview({action:"gen", plugin:"<本插件目录>"})` 会自动内联 React UMD 与真实 `lib/client.js`，
+> 无需 spec 即走 auto-harness 自动挂载；要看完整文案（含 i18n 字典）再接真实后端：
+> `preview({action:"serve", file:"<生成的 preview.html>", backend:"http://<本机IP>:<DSH端口>"})`
 > **截图声明**：`screenshots.json`（仓库根、与 `package.json` 同级，列出 `assets/panel-*.png`）——
 > DSH 插件榜单按此文件自动收录截图，作者推自己的仓库即生效，无需到榜单仓库提 PR
 
