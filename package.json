@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "build:client": "node scripts/build-client.mjs",
-    "sync:i18n": "node scripts/sync-i18n-fallback.mjs",
-    "prepare": "node scripts/sync-i18n-fallback.mjs && node scripts/build-client.mjs",
-    "prepack": "node scripts/sync-i18n-fallback.mjs && node scripts/build-client.mjs"
+    "prepare": "node scripts/build-client.mjs",
+    "prepack": "node scripts/build-client.mjs"
   },
   "main": "lib/index.js",
   "exports": {
